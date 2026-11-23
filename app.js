@@ -153,12 +153,22 @@
     const preset = MATERIAL_PRESETS[mat];
     if (!preset) return;
 
-    const rpm = Math.max(40, Math.min(2000, Math.round(((preset.vc * 1000) / (Math.PI * dBlank)) / 10) * 10));
+    const pattern = $("pattern").value;
+    // Straight: full-width radial contact (Fx lighter); Diagonal: progressive entry (fastest); Diamond: 2 wheels / cross-load (slower S/F, +pass)
+    const patMap = {
+      straight: { vc: 1.00, fx: 0.90, fz: 1.00, passAdd: 0 },
+      diagonal: { vc: 1.08, fx: 1.05, fz: 1.10, passAdd: 0 },
+      diamond:  { vc: 0.85, fx: 0.80, fz: 0.85, passAdd: 1 },
+    };
+    const pm = patMap[pattern] || patMap.straight;
+
+    const rpm = Math.max(40, Math.min(2000, Math.round(((preset.vc * pm.vc * 1000) / (Math.PI * dBlank)) / 10) * 10));
     const pitchScale = pitch >= 1.5 ? 0.85 : pitch <= 0.6 ? 1.1 : 1.0;
-    const fx = Math.max(0.03, Math.min(0.20, +(preset.fx * pitchScale).toFixed(2)));
-    const fz = Math.max(0.08, Math.min(0.35, +(preset.fz * pitchScale).toFixed(2)));
+    const fx = Math.max(0.03, Math.min(0.20, +(preset.fx * pm.fx * pitchScale).toFixed(2)));
+    const fz = Math.max(0.08, Math.min(0.35, +(preset.fz * pm.fz * pitchScale).toFixed(2)));
     const dwell = Math.max(0.3, +((3 * 60) / rpm).toFixed(1));
-    const passes = (mat === "inox" || mat === "c45" || pitch >= 1.5) ? (pitch >= 1.6 ? 3 : 2) : (pitch <= 0.8 && (mat === "alu" || mat === "brass") ? 1 : 2);
+    const basePasses = (mat === "inox" || mat === "c45" || pitch >= 1.5) ? (pitch >= 1.6 ? 3 : 2) : (pitch <= 0.8 && (mat === "alu" || mat === "brass") ? 1 : 2);
+    const passes = Math.min(6, basePasses + (mat === "alu" && pitch <= 0.8 ? 0 : pm.passAdd));
 
     $("spindleRpm").value = rpm;
     $("feedX").value = fx.toFixed(2);
@@ -957,7 +967,7 @@
       update();
     });
     el.addEventListener("change", () => {
-      if (["material", "autoCut", "dBlank", "pitch", "method", "helixAngle"].includes(el.id)) {
+      if (["material", "autoCut", "dBlank", "pitch", "method", "helixAngle", "pattern"].includes(el.id)) {
         applyAutoCuttingParams();
       }
       update();
