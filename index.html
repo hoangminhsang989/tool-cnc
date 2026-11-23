@@ -79,6 +79,7 @@
             <select id="method">
               <option value="traverse" selected>Chạy dọc (Traverse)</option>
               <option value="plunge">Ép tại chỗ (Plunge)</option>
+              <option value="thread60">Dao ren 60° (G32)</option>
             </select>
           </label>
           <label class="field">
@@ -92,6 +93,24 @@
           <label class="field">
             <span>Mã dao lăn</span>
             <input type="text" id="toolCode" value="T0505" maxlength="8" />
+          </label>
+        </div>
+
+        <div id="thread60Options" class="grid-2 sub-grid" style="display: none; margin-bottom: 10px;">
+          <label class="field">
+            <span>Góc xoắn α (độ)</span>
+            <select id="helixAngle">
+              <option value="45" selected>45° (Ca-rô vuông)</option>
+              <option value="30">30° (Rãnh nghiêng)</option>
+              <option value="60">60° (Bước xoắn ngắn)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Chia đầu mối</span>
+            <select id="threadIndexMode">
+              <option value="q_angle" selected>Góc pha Q (G32 Q...)</option>
+              <option value="z_shift">Dịch Z_start</option>
+            </select>
           </label>
         </div>
 
@@ -140,7 +159,7 @@
         <div class="grid-4">
           <label class="field">
             <span>S (RPM)</span>
-            <input type="number" id="spindleRpm" value="320" step="10" min="20" max="3000" />
+            <input type="number" id="spindleRpm" value="320" step="5" min="10" max="3000" />
           </label>
           <label class="field">
             <span>Fx (mm/v)</span>

@@ -18,6 +18,8 @@
     zStart: -1.0,
     zEnd: -25.0,
     method: "traverse",
+    helixAngle: 45,
+    threadIndexMode: "q_angle",
     passMode: "oneway",
     pattern: "diamond",
     pitch: 1.0,
@@ -76,6 +78,8 @@
       zStart: parseFloat($("zStart").value) || 0,
       zEnd: parseFloat($("zEnd").value) || -25,
       method: $("method").value,
+      helixAngle: parseFloat($("helixAngle").value) || 45,
+      threadIndexMode: $("threadIndexMode").value,
       passMode: $("passMode").value,
       pattern: $("pattern").value,
       pitch: Math.max(0.1, parseFloat($("pitch").value) || 1.0),
@@ -88,7 +92,7 @@
       preTurnTool: ($("preTurnTool").value || "T0101").trim().toUpperCase(),
       preTurnChamfer: Math.max(0, parseFloat($("preTurnChamfer").value) || 0),
       preTurnFeed: Math.max(0.02, parseFloat($("preTurnFeed").value) || 0.15),
-      spindleRpm: Math.max(20, parseInt($("spindleRpm").value, 10) || 300),
+      spindleRpm: Math.max(10, parseInt($("spindleRpm").value, 10) || 300),
       feedX: Math.max(0.01, parseFloat($("feedX").value) || 0.08),
       feedZ: Math.max(0.01, parseFloat($("feedZ").value) || 0.20),
       dwellSec: Math.max(0, parseFloat($("dwellSec").value) || 0),
@@ -105,13 +109,34 @@
     };
   }
 
+  function calcThread60(s) {
+    const rad = (s.helixAngle * Math.PI) / 180;
+    const lead = (Math.PI * s.dBlank) / Math.tan(rad);
+    const starts = Math.max(2, Math.round((Math.PI * s.dBlank * Math.cos(rad)) / s.pitch));
+    const actualPitch = (Math.PI * s.dBlank * Math.cos(rad)) / starts;
+    const feedMmMin = s.spindleRpm * lead;
+    return { lead, starts, actualPitch, feedMmMin };
+  }
+
   function applyAutoCuttingParams() {
     if (!$("autoCut").checked) return;
     const mat = $("material").value;
-    const preset = MATERIAL_PRESETS[mat];
-    if (!preset) return;
+    const method = $("method").value;
     const dBlank = Math.max(1, parseFloat($("dBlank").value) || 30);
     const pitch = Math.max(0.1, parseFloat($("pitch").value) || 1.0);
+
+    if (method === "thread60") {
+      const angle = parseFloat($("helixAngle").value) || 45;
+      const lead = (Math.PI * dBlank) / Math.tan((angle * Math.PI) / 180);
+      const safeRpm = Math.max(10, Math.min(120, Math.floor(2200 / lead / 5) * 5 || 15));
+      const passes = (mat === "inox" || mat === "c45" || pitch >= 1.5) ? 2 : 1;
+      $("spindleRpm").value = safeRpm;
+      $("passes").value = passes;
+      return;
+    }
+
+    const preset = MATERIAL_PRESETS[mat];
+    if (!preset) return;
 
     const rpm = Math.max(40, Math.min(2000, Math.round(((preset.vc * 1000) / (Math.PI * dBlank)) / 10) * 10));
     const pitchScale = pitch >= 1.5 ? 0.85 : pitch <= 0.6 ? 1.1 : 1.0;
@@ -129,7 +154,8 @@
 
   function syncDepthAndUI(s) {
     if (s.autoDepth) {
-      const d = +(s.pitch * 0.45).toFixed(3);
+      const ratio = s.method === "thread60" ? 0.40 : 0.45;
+      const d = +(s.pitch * ratio).toFixed(3);
       $("depthPerSide").value = d;
       $("depthPerSide").disabled = true;
       s.depthPerSide = d;
@@ -138,9 +164,13 @@
     }
 
     const isPlunge = s.method === "plunge";
-    $("feedZ").disabled = isPlunge;
-    $("chamferExit").disabled = isPlunge;
-    $("passMode").disabled = isPlunge;
+    const isThread60 = s.method === "thread60";
+    $("thread60Options").style.display = isThread60 ? "grid" : "none";
+    $("feedX").disabled = isThread60;
+    $("feedZ").disabled = isPlunge || isThread60;
+    $("dwellSec").disabled = isThread60;
+    $("chamferExit").disabled = isPlunge || isThread60;
+    $("passMode").disabled = isPlunge || isThread60;
     $("preTurnOptions").style.display = s.preTurn ? "grid" : "none";
     $("progNumber").disabled = !s.includeProgNum;
     $("wcs").disabled = !s.includeWcs;
@@ -222,7 +252,57 @@
 
     lines.push(`G00 X${fmtCoord(Math.max(s.xSafe, xClear))} Z${fmtCoord(s.zApproach)}${cmt("SAFE APPROACH")}`);
 
-    if (s.method === "plunge") {
+    if (s.method === "thread60") {
+      const t60 = calcThread60(s);
+      const leadStr = t60.lead.toFixed(3);
+      const leadIn = 2.0;
+      const zLeadFwd = s.zStart - zDir * leadIn;
+      const zLeadRev = s.zEnd + zDir * leadIn;
+      if (s.includeComments) {
+        lines.push(`(THREAD-KNURL 60 DEG | LEAD F=${leadStr} | STARTS=${t60.starts} | HELIX=${s.helixAngle} DEG)`);
+      }
+
+      for (let i = 1; i <= s.passes; i++) {
+        const frac = i / s.passes;
+        const xPass = s.dBlank - 2 * s.depthPerSide * frac;
+        if (s.includeComments) lines.push(`(--- PASS ${i}/${s.passes} X=${fmtCoord(xPass)} ---)`);
+
+        for (let k = 0; k < t60.starts; k++) {
+          if (s.threadIndexMode === "q_angle") {
+            const qVal = Math.round((k * 360000) / t60.starts);
+            const qStr = s.controller === "mach3" ? "" : ` Q${qVal}`;
+            lines.push(`G00 X${fmtCoord(xClear)} Z${fmtCoord(zLeadFwd)}`);
+            lines.push(`G00 X${fmtCoord(xPass)}`);
+            lines.push(`G32 Z${fmtCoord(s.zEnd)} F${leadStr}${qStr}`);
+          } else {
+            const zShift = zLeadFwd - zDir * ((k * t60.lead) / t60.starts);
+            lines.push(`G00 X${fmtCoord(xClear)} Z${fmtCoord(zShift)}`);
+            lines.push(`G00 X${fmtCoord(xPass)}`);
+            lines.push(`G32 Z${fmtCoord(s.zEnd)} F${leadStr}`);
+          }
+          lines.push(`G00 X${fmtCoord(xClear)}`);
+        }
+
+        if (s.pattern === "diamond") {
+          if (s.includeComments) lines.push(`(--- REVERSE HELIX FOR DIAMOND ---)`);
+          for (let k = 0; k < t60.starts; k++) {
+            if (s.threadIndexMode === "q_angle") {
+              const qVal = Math.round((k * 360000) / t60.starts);
+              const qStr = s.controller === "mach3" ? "" : ` Q${qVal}`;
+              lines.push(`G00 X${fmtCoord(xClear)} Z${fmtCoord(zLeadRev)}`);
+              lines.push(`G00 X${fmtCoord(xPass)}`);
+              lines.push(`G32 Z${fmtCoord(s.zStart)} F${leadStr}${qStr}`);
+            } else {
+              const zShiftRev = zLeadRev + zDir * ((k * t60.lead) / t60.starts);
+              lines.push(`G00 X${fmtCoord(xClear)} Z${fmtCoord(zShiftRev)}`);
+              lines.push(`G00 X${fmtCoord(xPass)}`);
+              lines.push(`G32 Z${fmtCoord(s.zStart)} F${leadStr}`);
+            }
+            lines.push(`G00 X${fmtCoord(xClear)}`);
+          }
+        }
+      }
+    } else if (s.method === "plunge") {
       lines.push(`G00 Z${fmtCoord(s.zStart)}${cmt("POSITION Z")}`);
       lines.push(`G00 X${fmtCoord(xClear)}`);
 
@@ -302,7 +382,12 @@
     // Estimate cycle time (seconds)
     const revPerSec = s.spindleRpm / 60;
     let cutSec = 0;
-    if (s.method === "plunge") {
+    if (s.method === "thread60") {
+      const t60 = calcThread60(s);
+      const dirs = s.pattern === "diamond" ? 2 : 1;
+      const passSec = (zLen + 4) / (t60.lead * revPerSec) + 0.8;
+      cutSec = s.passes * dirs * t60.starts * passSec + 3.0;
+    } else if (s.method === "plunge") {
       cutSec = (s.depthPerSide / (s.feedX * revPerSec)) + s.dwellSec + 2.0;
     } else {
       const plungeSec = (s.depthPerSide / s.passes) / (s.feedX * revPerSec);
@@ -320,7 +405,7 @@
 
   function updateMetrics(s, res) {
     $("mXBottom").textContent = `${res.xBottom.toFixed(2)} mm`;
-    const dFinal = s.dBlank + 0.4 * s.pitch;
+    const dFinal = s.method === "thread60" ? s.dBlank : s.dBlank + 0.4 * s.pitch;
     $("mDFinal").textContent = `${dFinal.toFixed(2)} mm`;
 
     const vc = (Math.PI * s.dBlank * s.spindleRpm) / 1000;
@@ -330,13 +415,22 @@
     const secs = String(res.cycleSec % 60).padStart(2, "0");
     $("mCycleTime").textContent = `${mins}:${secs}`;
 
+    const box = $("trackingBox");
+    const txt = $("trackingText");
+    if (s.method === "thread60") {
+      const t60 = calcThread60(s);
+      box.className = "tracking-box ok";
+      txt.textContent = `Dao ren 60°: Lead F = ${t60.lead.toFixed(2)} mm/vòng | ${t60.starts} đầu mối | Bước thực = ${t60.actualPitch.toFixed(3)} mm | Tốc độ Z = ${Math.round(t60.feedMmMin)} mm/phút.`;
+      $("btnApplyOptD").style.display = "none";
+      updateWarnings(s, vc, t60);
+      return;
+    }
+
     const teeth = (Math.PI * s.dBlank) / s.pitch;
     const nearest = Math.round(teeth);
     const diff = Math.abs(teeth - nearest);
     optimalD0 = +((nearest * s.pitch) / Math.PI).toFixed(2);
 
-    const box = $("trackingBox");
-    const txt = $("trackingText");
     if (diff <= 0.12) {
       box.className = "tracking-box ok";
       txt.textContent = `Đạt (${teeth.toFixed(2)} răng/chu vi, sai lệch ${diff.toFixed(2)}). Bánh lăn ăn khớp tốt.`;
@@ -347,22 +441,35 @@
       $("btnApplyOptD").style.display = "inline-block";
     }
 
-    updateWarnings(s, vc);
+    updateWarnings(s, vc, null);
   }
 
-  function updateWarnings(s, vc) {
+  function updateWarnings(s, vc, t60) {
     const warns = [];
-    if (s.depthPerSide > s.pitch * 0.6) {
-      warns.push(`Chiều sâu ăn (${s.depthPerSide} mm) lớn hơn 0.6 × Pitch — dễ gãy chốt hoặc bẹp đỉnh răng.`);
-    }
-    if ((s.material === "inox" && vc > 24) || vc > 65) {
-      warns.push(`Vận tốc cắt Vc = ${vc.toFixed(1)} m/phút khá cao — dễ dính phôi hoặc cháy bánh lăn.`);
-    }
-    if (s.method === "traverse" && s.zStart > -0.3 && !s.preTurn) {
-      warns.push("Z bắt đầu sát mặt đầu: nên vát mép đầu C0.5–C1.0 (hoặc bật Tiện tinh D0) để bánh lăn vào êm.");
-    }
-    if (s.passMode === "zigzag" && s.method === "traverse" && s.passes > 1) {
-      warns.push("Chế độ Zig-zag chỉ phù hợp với bánh lăn ép (Form knurling) giữ rãnh, không dùng cho dao lăn cắt 1 chiều.");
+    if (s.method === "thread60" && t60) {
+      if (t60.feedMmMin > 2800) {
+        const recRpm = Math.max(10, Math.floor(2400 / t60.lead / 5) * 5);
+        warns.push(`Tốc độ chạy trục Z (S × Lead = ${Math.round(t60.feedMmMin)} mm/phút) quá cao, dễ báo lỗi servo! Nên giảm S ≤ ${recRpm} RPM.`);
+      }
+      if (s.pattern === "straight") {
+        warns.push("Dao ren 60° chỉ tạo được nhám Chéo (Diagonal) hoặc Ca-rô (Diamond), không tạo được nhám Thẳng 0°.");
+      }
+      if (s.threadIndexMode === "q_angle" && s.controller === "mach3") {
+        warns.push("Mach3 không hỗ trợ tham số góc pha Q trong G32 — hãy chuyển 'Chia đầu mối' sang 'Dịch Z_start'.");
+      }
+    } else {
+      if (s.depthPerSide > s.pitch * 0.6) {
+        warns.push(`Chiều sâu ăn (${s.depthPerSide} mm) lớn hơn 0.6 × Pitch — dễ gãy chốt hoặc bẹp đỉnh răng.`);
+      }
+      if ((s.material === "inox" && vc > 24) || vc > 65) {
+        warns.push(`Vận tốc cắt Vc = ${vc.toFixed(1)} m/phút khá cao — dễ dính phôi hoặc cháy bánh lăn.`);
+      }
+      if (s.method === "traverse" && s.zStart > -0.3 && !s.preTurn) {
+        warns.push("Z bắt đầu sát mặt đầu: nên vát mép đầu C0.5–C1.0 (hoặc bật Tiện tinh D0) để bánh lăn vào êm.");
+      }
+      if (s.passMode === "zigzag" && s.method === "traverse" && s.passes > 1) {
+        warns.push("Chế độ Zig-zag chỉ phù hợp với bánh lăn ép (Form knurling) giữ rãnh, không dùng cho dao lăn cắt 1 chiều.");
+      }
     }
 
     const wBox = $("warningsBox");
@@ -421,22 +528,44 @@
       }
     }
 
-    // Knurling wheel icon above Z_start
-    const wheelR = 16;
-    const wheelCx = zsX;
-    const wheelCy = xClearY - wheelR - 4;
-    const wheelHtml = `
-      <g>
-        <rect x="${wheelCx - 5}" y="${wheelCy - wheelR - 14}" width="10" height="16" rx="2" fill="#475569"/>
-        <circle cx="${wheelCx}" cy="${wheelCy}" r="${wheelR}" fill="#fef3c7" stroke="#d97706" stroke-width="2" stroke-dasharray="3,2"/>
-        <circle cx="${wheelCx}" cy="${wheelCy}" r="4.5" fill="#475569"/>
-        <text x="${wheelCx + wheelR + 6}" y="${wheelCy + 4}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Bánh lăn (${s.toolCode})</text>
-      </g>
-    `;
+    // Tool icon above Z_start (Knurling wheel OR 60-deg threading insert)
+    let wheelHtml = "";
+    if (s.method === "thread60") {
+      const tx = zsX;
+      const ty = xClearY - 2;
+      wheelHtml = `
+        <g>
+          <rect x="${tx - 6}" y="${ty - 34}" width="12" height="20" rx="2" fill="#475569"/>
+          <polygon points="${tx - 9},${ty - 14} ${tx + 9},${ty - 14} ${tx},${ty}" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+          <text x="${tx + 14}" y="${ty - 14}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Dao ren 60° (${s.toolCode})</text>
+        </g>
+      `;
+    } else {
+      const wheelR = 16;
+      const wheelCx = zsX;
+      const wheelCy = xClearY - wheelR - 4;
+      wheelHtml = `
+        <g>
+          <rect x="${wheelCx - 5}" y="${wheelCy - wheelR - 14}" width="10" height="16" rx="2" fill="#475569"/>
+          <circle cx="${wheelCx}" cy="${wheelCy}" r="${wheelR}" fill="#fef3c7" stroke="#d97706" stroke-width="2" stroke-dasharray="3,2"/>
+          <circle cx="${wheelCx}" cy="${wheelCy}" r="4.5" fill="#475569"/>
+          <text x="${wheelCx + wheelR + 6}" y="${wheelCy + 4}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Bánh lăn (${s.toolCode})</text>
+        </g>
+      `;
+    }
 
     // Toolpath polyline
     let pathHtml = "";
-    if (s.method === "plunge") {
+    if (s.method === "thread60") {
+      const t60 = calcThread60(s);
+      pathHtml = `
+        <line x1="${zaX}" y1="${xClearY - 12}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
+        <line x1="${zsX}" y1="${xClearY}" x2="${zsX}" y2="${xDepthY}" stroke="#dc2626" stroke-width="2.0"/>
+        <line x1="${zsX}" y1="${xDepthY}" x2="${zeX}" y2="${xDepthY}" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrowRed)"/>
+        <line x1="${zeX}" y1="${xDepthY}" x2="${zeX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
+        <text x="${(zsX + zeX) / 2}" y="${xDepthY - 5}" fill="#dc2626" font-size="10.5" font-family="monospace" text-anchor="middle">G32 F=${t60.lead.toFixed(1)} (${t60.starts} mối)</text>
+      `;
+    } else if (s.method === "plunge") {
       pathHtml = `
         <line x1="${zaX}" y1="${xClearY - 12}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
         <line x1="${zsX}" y1="${xClearY}" x2="${zsX}" y2="${xDepthY}" stroke="#dc2626" stroke-width="2.4" marker-end="url(#arrowRed)"/>
@@ -568,7 +697,7 @@
       update();
     });
     el.addEventListener("change", () => {
-      if (["material", "autoCut", "dBlank", "pitch"].includes(el.id)) {
+      if (["material", "autoCut", "dBlank", "pitch", "method", "helixAngle"].includes(el.id)) {
         applyAutoCuttingParams();
       }
       update();
