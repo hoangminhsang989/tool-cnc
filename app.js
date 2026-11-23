@@ -997,6 +997,22 @@
     showToast(`Đã cập nhật D0 = ${optimalD0.toFixed(2)} mm`);
   });
 
+  $("btnCalcD0").addEventListener("click", () => {
+    const s = readState();
+    const curTarget = s.surfaceType === "id" ? (s.dBlank - 0.4 * s.pitch) : (s.dBlank + 0.4 * s.pitch);
+    const val = prompt(`Nhập đường kính thành phẩm sau khi lăn (mm):`, curTarget.toFixed(2));
+    if (!val) return;
+    const target = parseFloat(val);
+    if (!Number.isFinite(target) || target <= 1) return;
+    const d0 = s.method === "thread60"
+      ? target
+      : (s.surfaceType === "id" ? target + 0.4 * s.pitch : Math.max(1, target - 0.4 * s.pitch));
+    $("dBlank").value = d0.toFixed(2);
+    applyAutoCuttingParams();
+    update();
+    showToast(`D0 tiện trước khi lăn = ${d0.toFixed(2)} mm`);
+  });
+
   function stopAnimation() {
     if (animFrameId) {
       cancelAnimationFrame(animFrameId);
