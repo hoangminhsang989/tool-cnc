@@ -14,15 +14,30 @@
 
   let lockSync = false;
 
+  const CHIP_FACTORS = {
+    carbide:          { vc: 1.00, f: 1.00 },
+    cermet:           { vc: 1.25, f: 0.75 },
+    carbide_uncoated: { vc: 0.75, f: 0.90 },
+    hss:              { vc: 0.35, f: 0.85 },
+    cbn:              { vc: 2.10, f: 0.70 },
+    pcd:              { vc: 2.40, f: 0.90 },
+  };
+
   function applyCalcPreset() {
     const op = $("cOp").value;
-    const mat = MAT_DB[$("cMat").value] || MAT_DB.mild_steel;
-    const toolMat = $("cToolMat").value; // carbide | hss
+    const matKey = $("cMat").value;
+    const mat = MAT_DB[matKey] || MAT_DB.mild_steel;
+    const toolMat = $("cToolMat").value;
     const cutType = $("cCutType").value; // rough | finish
 
-    const hssFactor = toolMat === "hss" ? 0.35 : 1.0;
+    const chip = CHIP_FACTORS[toolMat] || CHIP_FACTORS.carbide;
+    let vcFactor = chip.vc;
+    // CBN is for hardened steel / cast iron; PCD is for non-ferrous (alu / brass)
+    if (toolMat === "cbn" && matKey !== "hardened" && matKey !== "cast_iron") vcFactor = 1.1;
+    if (toolMat === "pcd" && matKey !== "alu" && matKey !== "brass") vcFactor = 1.0;
+
     const finishVcFactor = cutType === "finish" ? 1.25 : 1.0;
-    const finishFeedFactor = cutType === "finish" ? 0.55 : 1.0;
+    const finishFeedFactor = (cutType === "finish" ? 0.55 : 1.0) * chip.f;
 
     let baseVc = mat.vcTurn;
     let baseF = mat.fTurn;
@@ -34,7 +49,7 @@
       baseF = mat.fDrill;
     }
 
-    const vc = Math.max(5, Math.round(baseVc * hssFactor * finishVcFactor));
+    const vc = Math.max(5, Math.round(baseVc * vcFactor * finishVcFactor));
     const d = Math.max(0.5, parseFloat($("cDia").value) || 30);
     const rpm = Math.round((vc * 1000) / (Math.PI * d));
 
