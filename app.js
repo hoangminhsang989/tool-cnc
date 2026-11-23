@@ -21,6 +21,7 @@
     helixAngle: 45,
     threadIndexMode: "q_angle",
     threadCodeMode: "linear",
+    springPass: true,
     passMode: "oneway",
     pattern: "diamond",
     pitch: 1.0,
@@ -84,6 +85,7 @@
       helixAngle: parseFloat($("helixAngle").value) || 45,
       threadIndexMode: $("threadIndexMode").value,
       threadCodeMode: $("threadCodeMode").value,
+      springPass: $("springPass").checked,
       passMode: $("passMode").value,
       pattern: $("pattern").value,
       pitch: Math.max(0.1, parseFloat($("pitch").value) || 1.0),
@@ -273,12 +275,18 @@
 
       let prevDepth = 0;
       const stepZ = t60.lead / t60.starts;
-      for (let i = 1; i <= s.passes; i++) {
-        const curDepth = s.depthPerSide * Math.sqrt(i / s.passes);
-        const ap = curDepth - prevDepth;
+      const totalPasses = s.passes + (s.springPass ? 1 : 0);
+      for (let i = 1; i <= totalPasses; i++) {
+        const isSpring = s.springPass && i === totalPasses;
+        const curDepth = isSpring ? s.depthPerSide : s.depthPerSide * Math.sqrt(i / s.passes);
+        const ap = isSpring ? 0 : curDepth - prevDepth;
         prevDepth = curDepth;
         const xPass = s.dBlank - 2 * curDepth;
-        if (s.includeComments) lines.push(`(--- PASS ${i}/${s.passes} X=${fmtCoord(xPass)} AP=${ap.toFixed(3)}MM ---)`);
+        if (s.includeComments) {
+          lines.push(isSpring
+            ? `(--- SPRING PASS X=${fmtCoord(xPass)} AP=0.000MM ---)`
+            : `(--- PASS ${i}/${s.passes} X=${fmtCoord(xPass)} AP=${ap.toFixed(3)}MM ---)`);
+        }
 
         if (s.threadCodeMode === "macro") {
           lines.push(`#101 = 0`);
@@ -833,6 +841,7 @@
   }
 
   function update() {
+    if (typeof stopAnimation === "function" && animFrameId) stopAnimation();
     const s = readState();
     syncDepthAndUI(s);
     const res = generateGCode(s);
