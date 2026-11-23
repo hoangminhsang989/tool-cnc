@@ -131,6 +131,33 @@
     } else {
       $("cResExtra").textContent = `Khoan Ø${d} mm: Vf = ${Math.round(vf)} mm/ph · Nếu taro bước P=${fOrFz} mm thì Vf = ${Math.round(rpm * fOrFz)} mm/ph`;
     }
+
+    const warns = [];
+    const toolMat = $("cToolMat").value;
+    const matKey = $("cMat").value;
+    if (toolMat === "pcd" && matKey !== "alu" && matKey !== "brass") {
+      warns.push("Chíp PCD (Kim cương) chỉ dùng cho Nhôm / Đồng / Phi kim — cắt thép sẽ phản ứng nhiệt hỏng chíp ngay!");
+    }
+    if (toolMat === "cbn" && (matKey === "alu" || matKey === "brass" || matKey === "mild_steel")) {
+      warns.push("Chíp CBN chuyên dùng cho thép sau nhiệt (>45 HRC) hoặc gang cứng, không hiệu quả trên nhôm/thép mềm.");
+    }
+    if (powerKw > 7.5) {
+      warns.push(`Công suất cắt Pc = ${powerKw.toFixed(2)} kW khá lớn — kiểm tra công suất motor trục chính hoặc giảm ap / f.`);
+    }
+    if (op === "turning" && fOrFz > noseR * 0.7) {
+      warns.push(`Bước tiến f (${fOrFz}) lớn hơn 0.7 × R mũi dao (${noseR}) — bề mặt dễ bị sọc thô (Ra cao).`);
+    }
+
+    const cw = $("cWarningsBox");
+    if (cw) {
+      if (warns.length === 0) {
+        cw.style.display = "none";
+        cw.innerHTML = "";
+      } else {
+        cw.style.display = "flex";
+        cw.innerHTML = warns.map((w) => `<div>• ${w}</div>`).join("");
+      }
+    }
   }
 
   function bindCalcEvents() {
@@ -211,6 +238,7 @@
 
     ["cFlutes", "cAp", "cAe", "cNoseR"].forEach((id) => {
       $(id).addEventListener("input", updateCalc);
+      $(id).addEventListener("change", updateCalc);
     });
 
     $("btnCalcSuggest").addEventListener("click", applyCalcPreset);
