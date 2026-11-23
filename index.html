@@ -9,10 +9,13 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="badge">CNC-KNURL</span>
-      <h1>Tạo Chương Trình Lăn Nhám Tiện CNC</h1>
+      <span class="badge">CNC-TOOL</span>
+      <nav class="tab-nav" aria-label="Chọn công cụ">
+        <button type="button" id="tabKnurl" class="tab-btn active">Lăn nhám CNC</button>
+        <button type="button" id="tabCalc" class="tab-btn">Tính Chế Độ Cắt</button>
+      </nav>
     </div>
-    <div class="topbar-actions">
+    <div id="knurlTopActions" class="topbar-actions">
       <select id="presetSelect" class="preset-select" title="Cấu hình đã lưu">
         <option value="">-- Cấu hình đã lưu --</option>
       </select>
@@ -28,7 +31,7 @@
     </div>
   </header>
 
-  <main class="layout">
+  <main id="knurlView" class="layout">
     <!-- LEFT: COMPACT INPUTS -->
     <section class="panel inputs-panel">
       <div class="card">
@@ -372,9 +375,160 @@
     </section>
   </main>
 
+  <main id="calcView" class="layout" style="display: none;">
+    <section class="panel inputs-panel">
+      <div class="card">
+        <div class="card-head" style="margin-bottom: 12px;">
+          <h2>1. Nguyên công &amp; Vật liệu</h2>
+          <button type="button" id="btnCalcSuggest" class="btn btn-small">↻ Gợi ý chuẩn</button>
+        </div>
+
+        <div class="grid-2">
+          <label class="field">
+            <span>Nguyên công</span>
+            <select id="cOp">
+              <option value="turning" selected>Tiện ngoài / Tiện lỗ</option>
+              <option value="milling">Phay ngón / Phay mặt</option>
+              <option value="drilling">Khoan / Taro</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Vật liệu phôi</span>
+            <select id="cMat">
+              <option value="alu">Nhôm (Al 6061)</option>
+              <option value="brass">Đồng thau (Brass)</option>
+              <option value="cast_iron">Gang xám (FC250)</option>
+              <option value="mild_steel" selected>Thép mềm (SS400)</option>
+              <option value="c45">Thép C45 / 40X</option>
+              <option value="inox">Inox 304</option>
+              <option value="hardened">Thép sau nhiệt (45-55HRC)</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="grid-2">
+          <label class="field">
+            <span>Vật liệu dao</span>
+            <select id="cToolMat">
+              <option value="carbide" selected>Hợp kim phủ (Carbide)</option>
+              <option value="hss">Thép gió (HSS)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Chế độ gia công</span>
+            <select id="cCutType">
+              <option value="rough" selected>Phá thô (Roughing)</option>
+              <option value="finish">Chạy tinh (Finishing)</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>2. Thông số cắt (Tính 2 chiều)</h2>
+        <div class="grid-3">
+          <label class="field">
+            <span id="cDiaLabel">ĐK phôi D (mm)</span>
+            <input type="number" id="cDia" value="30" step="0.5" min="0.5" />
+          </label>
+          <label class="field">
+            <span>Vận tốc cắt Vc (m/ph)</span>
+            <input type="number" id="cVc" value="160" step="5" min="1" />
+          </label>
+          <label class="field">
+            <span>Tốc độ S (RPM)</span>
+            <input type="number" id="cRpm" value="1698" step="50" min="1" />
+          </label>
+        </div>
+
+        <div class="grid-3">
+          <label class="field">
+            <span id="cFeedLabel">Bước tiến f (mm/vòng)</span>
+            <input type="number" id="cFz" value="0.22" step="0.01" min="0.001" />
+          </label>
+          <label class="field">
+            <span>Bước tiến bàn Vf (mm/ph)</span>
+            <input type="number" id="cVf" value="374" step="10" min="1" />
+          </label>
+          <label class="field" id="cFlutesWrap" style="display: none;">
+            <span>Số me cắt Z</span>
+            <input type="number" id="cFlutes" value="4" step="1" min="1" max="12" />
+          </label>
+          <label class="field" id="cNoseWrap">
+            <span>R mũi dao (mm)</span>
+            <input type="number" id="cNoseR" value="0.4" step="0.1" min="0.1" max="2.0" />
+          </label>
+        </div>
+
+        <div class="grid-2">
+          <label class="field" id="cApWrap">
+            <span>Chiều sâu cắt ap (mm)</span>
+            <input type="number" id="cAp" value="1.5" step="0.1" min="0.05" />
+          </label>
+          <label class="field" id="cAeWrap" style="display: none;">
+            <span>Chiều rộng cắt ae (mm)</span>
+            <input type="number" id="cAe" value="10" step="0.5" min="0.1" />
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel outputs-panel">
+      <div class="card metrics-card">
+        <h2>Kết quả tính toán</h2>
+        <div class="metrics-grid">
+          <div class="metric">
+            <span class="metric-label">Số vòng quay (S)</span>
+            <strong class="metric-value" id="cResRpm">1698 RPM</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Bước tiến bàn (Vf)</span>
+            <strong class="metric-value" id="cResVf">374 mm/ph</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Năng suất bóc phôi (MRR)</span>
+            <strong class="metric-value" id="cResMrr">52.8 cm³/ph</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Công suất cắt (Pc)</span>
+            <strong class="metric-value" id="cResPower">1.98 kW</strong>
+          </div>
+        </div>
+        <div id="cResExtra" class="pass-breakdown" style="display: block;">—</div>
+      </div>
+
+      <div class="card">
+        <h2>Bảng tra nhanh Vc &amp; Bước tiến tham khảo (Dao Carbide)</h2>
+        <div class="table-wrap">
+          <table class="ref-table">
+            <thead>
+              <tr>
+                <th>Vật liệu</th>
+                <th>Tiện Vc (m/ph)</th>
+                <th>Tiện f (mm/v)</th>
+                <th>Phay Vc (m/ph)</th>
+                <th>Phay fz (mm/răng)</th>
+                <th>Khoan Vc (m/ph)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Nhôm (Al 6061)</td><td>180 – 300</td><td>0.12 – 0.30</td><td>160 – 260</td><td>0.05 – 0.12</td><td>70 – 110</td></tr>
+              <tr><td>Đồng thau</td><td>150 – 220</td><td>0.10 – 0.25</td><td>130 – 190</td><td>0.05 – 0.10</td><td>60 – 90</td></tr>
+              <tr><td>Thép mềm (SS400)</td><td>130 – 190</td><td>0.12 – 0.28</td><td>100 – 150</td><td>0.04 – 0.08</td><td>45 – 65</td></tr>
+              <tr><td>Thép C45 / 40X</td><td>100 – 150</td><td>0.10 – 0.22</td><td>85 – 125</td><td>0.03 – 0.07</td><td>35 – 50</td></tr>
+              <tr><td>Inox 304</td><td>75 – 115</td><td>0.08 – 0.18</td><td>60 – 90</td><td>0.025 – 0.05</td><td>20 – 32</td></tr>
+              <tr><td>Thép sau nhiệt (45–55 HRC)</td><td>50 – 80</td><td>0.05 – 0.12</td><td>45 – 70</td><td>0.02 – 0.04</td><td>12 – 20</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
   <section id="setupSheet" class="setup-sheet"></section>
   <div id="toast" class="toast" aria-live="polite"></div>
   <script src="help.js"></script>
   <script src="app.js"></script>
+  <script src="calc.js"></script>
 </body>
 </html>
