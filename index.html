@@ -53,7 +53,7 @@
               <option value="inox">Inox 304</option>
             </select>
           </label>
-          <label class="field">
+          <label class="field" data-help="surfaceType">
             <span>Bề mặt</span>
             <select id="surfaceType">
               <option value="od" selected>Ngoài (OD)</option>
@@ -67,25 +67,25 @@
         </div>
 
         <div class="grid-3">
-          <label class="field">
+          <label class="field" data-help="dBlank">
             <span style="display:flex; justify-content:space-between; align-items:center;">
               <span>ĐK phôi D0 (mm)</span>
               <button type="button" id="btnCalcD0" class="link-mini" title="Tính D0 từ đường kính thành phẩm sau lăn">Từ ĐK đạt</button>
             </span>
             <input type="number" id="dBlank" value="30.0" step="0.05" min="1" />
           </label>
-          <label class="field">
+          <label class="field" data-help="zRange">
             <span>Z bắt đầu (mm)</span>
             <input type="number" id="zStart" value="-1.0" step="0.5" />
           </label>
-          <label class="field">
+          <label class="field" data-help="zRange">
             <span>Z kết thúc (mm)</span>
             <input type="number" id="zEnd" value="-25.0" step="0.5" />
           </label>
         </div>
 
         <div class="grid-3">
-          <label class="field">
+          <label class="field" data-help="method">
             <span>Phương pháp</span>
             <select id="method">
               <option value="traverse" selected>Chạy dọc (Traverse)</option>
@@ -93,7 +93,7 @@
               <option value="thread60">Dao ren 60° (G32)</option>
             </select>
           </label>
-          <label class="field">
+          <label class="field" data-help="pattern">
             <span>Hoa văn</span>
             <select id="pattern">
               <option value="diamond" selected>Ca-rô (Diamond)</option>
@@ -108,7 +108,7 @@
         </div>
 
         <div id="thread60Options" class="grid-3 sub-grid" style="display: none; margin-bottom: 10px;">
-          <label class="field">
+          <label class="field" data-help="helixAngle">
             <span>Góc xoắn α (độ)</span>
             <select id="helixAngle">
               <option value="45" selected>45° (Ca-rô vuông)</option>
@@ -116,7 +116,7 @@
               <option value="60">60° (Bước xoắn ngắn)</option>
             </select>
           </label>
-          <label class="field">
+          <label class="field" data-help="threadIndexMode">
             <span>Chia đầu mối</span>
             <select id="threadIndexMode">
               <option value="q_angle" selected>Góc pha Q (G32 Q...)</option>
@@ -136,7 +136,7 @@
           </label>
         </div>
 
-        <div class="field" style="margin-bottom: 10px;">
+        <div class="field" style="margin-bottom: 10px;" data-help="pitch">
           <span>Bước nhám Pitch P (mm)</span>
           <div class="pitch-row">
             <input type="number" id="pitch" value="1.0" step="0.1" min="0.2" max="5.0" />
@@ -153,15 +153,15 @@
         </div>
 
         <div class="grid-3">
-          <label class="field">
+          <label class="field" data-help="depthPerSide">
             <span>Chiều sâu X/bên (mm)</span>
             <input type="number" id="depthPerSide" value="0.45" step="0.02" min="0.05" />
           </label>
-          <label class="field">
+          <label class="field" data-help="depthPerSide">
             <span>Số lượt (Passes)</span>
             <input type="number" id="passes" value="2" step="1" min="1" max="10" />
           </label>
-          <label class="field">
+          <label class="field" data-help="wheelWidth">
             <span>Rộng bánh lăn (mm)</span>
             <input type="number" id="wheelWidth" value="8" step="1" min="2" max="50" />
           </label>
@@ -182,7 +182,7 @@
           </label>
         </div>
 
-        <div class="grid-4">
+        <div class="grid-4" data-help="cuttingParams">
           <label class="field">
             <span>S (RPM)</span>
             <input type="number" id="spindleRpm" value="320" step="5" min="10" max="3000" />
@@ -307,7 +307,7 @@
           </div>
         </div>
 
-        <div class="tracking-box" id="trackingBox">
+        <div class="tracking-box" id="trackingBox" data-help="trackingBox">
           <div>
             <strong>Khớp răng chu vi:</strong>
             <span id="trackingText">—</span>
@@ -339,7 +339,7 @@
       <div class="card gcode-card">
         <div class="card-head">
           <h2>Chương trình G-Code</h2>
-          <div class="gcode-meta">
+          <div class="gcode-meta" data-help="gcodeToggles">
             <label class="checkbox inline-check">
               <input type="checkbox" id="includeProgNum" checked />
               <span>Số CT</span>
@@ -374,6 +374,7 @@
 
   <section id="setupSheet" class="setup-sheet"></section>
   <div id="toast" class="toast" aria-live="polite"></div>
+  <script src="help.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

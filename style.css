@@ -621,6 +621,73 @@ body {
   transform: translateY(0);
 }
 
+.help-popover {
+  position: fixed;
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  background: #ffffff;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 13px 14px;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.16), 0 4px 10px rgba(15, 23, 42, 0.08);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.help-popover.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.help-pop-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 7px;
+}
+
+.help-badge {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-hover);
+  background: var(--accent-soft);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.help-pop-head strong {
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+.help-pop-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #334155;
+  white-space: pre-line;
+  margin-bottom: 9px;
+}
+
+.help-pop-svg {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.help-pop-svg svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 .setup-sheet {
   display: none;
 }
