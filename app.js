@@ -129,7 +129,12 @@
       const angle = parseFloat($("helixAngle").value) || 45;
       const lead = (Math.PI * dBlank) / Math.tan((angle * Math.PI) / 180);
       const safeRpm = Math.max(10, Math.min(120, Math.floor(2200 / lead / 5) * 5 || 15));
-      const passes = (mat === "inox" || mat === "c45" || pitch >= 1.5) ? 2 : 1;
+      const depth = $("autoDepth").checked
+        ? pitch * 0.40
+        : Math.max(0.05, parseFloat($("depthPerSide").value) || pitch * 0.40);
+      const maxApMap = { alu: 0.18, brass: 0.16, mild_steel: 0.12, c45: 0.09, inox: 0.07, custom: 0.10 };
+      const maxAp = maxApMap[mat] || 0.10;
+      const passes = Math.max(2, Math.min(10, Math.ceil(depth / maxAp)));
       $("spindleRpm").value = safeRpm;
       $("passes").value = passes;
       return;
@@ -262,10 +267,13 @@
         lines.push(`(THREAD-KNURL 60 DEG | LEAD F=${leadStr} | STARTS=${t60.starts} | HELIX=${s.helixAngle} DEG)`);
       }
 
+      let prevDepth = 0;
       for (let i = 1; i <= s.passes; i++) {
-        const frac = i / s.passes;
-        const xPass = s.dBlank - 2 * s.depthPerSide * frac;
-        if (s.includeComments) lines.push(`(--- PASS ${i}/${s.passes} X=${fmtCoord(xPass)} ---)`);
+        const curDepth = s.depthPerSide * Math.sqrt(i / s.passes);
+        const ap = curDepth - prevDepth;
+        prevDepth = curDepth;
+        const xPass = s.dBlank - 2 * curDepth;
+        if (s.includeComments) lines.push(`(--- PASS ${i}/${s.passes} X=${fmtCoord(xPass)} AP=${ap.toFixed(3)}MM ---)`);
 
         for (let k = 0; k < t60.starts; k++) {
           if (s.threadIndexMode === "q_angle") {
