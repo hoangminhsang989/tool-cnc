@@ -34,7 +34,7 @@
       <div class="card">
         <h2>1. Phôi &amp; Dao lăn nhám</h2>
         <div class="grid-4">
-          <label class="field">
+          <label class="field" data-help="controller">
             <span>Hệ điều khiển</span>
             <select id="controller">
               <option value="fanuc">Fanuc / GSK</option>
@@ -42,7 +42,7 @@
               <option value="mach3">Mach3 / Linux</option>
             </select>
           </label>
-          <label class="field">
+          <label class="field" data-help="material">
             <span>Vật liệu phôi</span>
             <select id="material">
               <option value="custom">Tùy chỉnh</option>
@@ -260,7 +260,7 @@
                 <input type="checkbox" id="chamferExit" />
                 <span>Thoát dao vát 45° cuối Z</span>
               </label>
-              <label class="checkbox">
+              <label class="checkbox" data-help="preTurn">
                 <input type="checkbox" id="preTurn" />
                 <span>Tiện tinh D0 trước khi lăn</span>
               </label>
@@ -332,7 +332,7 @@
         </div>
         <div class="preview-grid">
           <svg id="previewSvg" viewBox="0 0 680 265" preserveAspectRatio="xMidYMid meet"></svg>
-          <svg id="knurlZoomSvg" viewBox="0 0 220 265" preserveAspectRatio="xMidYMid meet"></svg>
+          <svg id="knurlZoomSvg" viewBox="0 0 220 265" preserveAspectRatio="xMidYMid meet" data-help="knurlZoom"></svg>
         </div>
       </div>
 

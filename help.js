@@ -191,6 +191,54 @@
         <text x="32" y="55" font-size="10" font-family="monospace" fill="#0f172a">N20 G97 S320 M03</text>
         <text x="32" y="69" font-size="10" font-family="monospace" fill="#64748b">;</text>
       </svg>`
+    },
+    controller: {
+      title: "Hệ điều khiển CNC",
+      text: "• Fanuc / GSK / Mitsubishi: Dùng G99 (mm/vòng), G04 X (giây), hỗ trợ G32 Q & Macro.\n• Haas: Dùng G99, G04 P (ms).\n• Mach3 / LinuxCNC: Dùng G95 (mm/vòng), G04 P (ms), nên dùng Dịch Z_start cho G32.",
+      svg: `<svg viewBox="0 0 260 95">
+        <rect x="14" y="18" width="72" height="58" rx="6" fill="#f8fafc" stroke="#475569"/>
+        <text x="50" y="43" font-size="10.5" font-family="monospace" font-weight="700" fill="#0f172a" text-anchor="middle">FANUC</text>
+        <text x="50" y="59" font-size="9.5" font-family="monospace" fill="#64748b" text-anchor="middle">G99 · G04 X</text>
+        <rect x="94" y="18" width="72" height="58" rx="6" fill="#f8fafc" stroke="#475569"/>
+        <text x="130" y="43" font-size="10.5" font-family="monospace" font-weight="700" fill="#0f172a" text-anchor="middle">HAAS</text>
+        <text x="130" y="59" font-size="9.5" font-family="monospace" fill="#64748b" text-anchor="middle">G99 · G04 P</text>
+        <rect x="174" y="18" width="72" height="58" rx="6" fill="#f8fafc" stroke="#475569"/>
+        <text x="210" y="43" font-size="10.5" font-family="monospace" font-weight="700" fill="#0f172a" text-anchor="middle">MACH3</text>
+        <text x="210" y="59" font-size="9.5" font-family="monospace" fill="#64748b" text-anchor="middle">G95 · G04 P</text>
+      </svg>`
+    },
+    material: {
+      title: "Vật liệu phôi & Vận tốc cắt Vc",
+      text: "Chọn vật liệu để tự động tính S (RPM), Fx, Fz và số lát cắt phù hợp:\n• Nhôm: 50 m/ph · Đồng: 45 m/ph\n• Thép mềm: 30 m/ph · C45: 22 m/ph\n• Inox 304: 15 m/ph (cần chia nhiều lát, tưới nguội kỹ).",
+      svg: `<svg viewBox="0 0 260 95">
+        <rect x="20" y="16" width="220" height="62" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+        <rect x="32" y="28" width="160" height="8" rx="4" fill="#16a34a"/>
+        <text x="200" y="35" font-size="9.5" font-family="monospace" fill="#0f172a">Al: 50</text>
+        <rect x="32" y="43" width="105" height="8" rx="4" fill="#d97706"/>
+        <text x="200" y="50" font-size="9.5" font-family="monospace" fill="#0f172a">Thép: 30</text>
+        <rect x="32" y="58" width="55" height="8" rx="4" fill="#dc2626"/>
+        <text x="200" y="65" font-size="9.5" font-family="monospace" fill="#0f172a">Inox: 15</text>
+      </svg>`
+    },
+    preTurn: {
+      title: "Tiện tinh D0 & vát mép đầu trước khi lăn",
+      text: "Chèn nguyên công dao tiện tinh (vd T0101) tiện chuẩn đường kính D0 và vát mép đầu C trước khi sang dao lăn nhám, kèm lệnh M01 dừng kiểm tra kích thước phôi.",
+      svg: `<svg viewBox="0 0 260 95">
+        <rect x="30" y="26" width="175" height="44" fill="#e2e8f0" stroke="#475569"/>
+        <polygon points="205,26 215,34 215,62 205,70" fill="#cbd5e1" stroke="#475569"/>
+        <polygon points="220,14 236,14 214,32" fill="#fef3c7" stroke="#d97706" stroke-width="1.6"/>
+        <text x="130" y="86" font-size="10" font-family="sans-serif" fill="#0f172a" text-anchor="middle">Vát mép C giúp bánh lăn vào phôi êm, không sứt răng</text>
+      </svg>`
+    },
+    knurlZoom: {
+      title: "Chiếu lưới nhám phóng đại (Zoom)",
+      text: "Hiển thị hình dáng bề mặt lưới nhám sau khi gia công theo đúng kiểu hoa văn (Ca-rô / Thẳng / Chéo), góc nghiêng rãnh α và mật độ theo bước Pitch P.",
+      svg: `<svg viewBox="0 0 260 95">
+        <circle cx="130" cy="46" r="34" fill="#e2e8f0" stroke="#475569" stroke-width="2"/>
+        <line x1="106" y1="22" x2="154" y2="70" stroke="#d97706" stroke-width="2"/>
+        <line x1="154" y1="22" x2="106" y2="70" stroke="#d97706" stroke-width="2"/>
+        <text x="130" y="90" font-size="10" font-family="sans-serif" fill="#475569" text-anchor="middle">Quan sát trực quan biên dạng răng</text>
+      </svg>`
     }
   };
 
