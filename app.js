@@ -50,6 +50,7 @@
     includeWcs: true,
     includeComments: true,
     includeSemicolon: false,
+    includeLineNum: false,
   };
 
   let optimalD0 = 30.0;
@@ -114,6 +115,7 @@
       includeWcs: $("includeWcs").checked,
       includeComments: $("includeComments").checked,
       includeSemicolon: $("includeSemicolon").checked,
+      includeLineNum: $("includeLineNum").checked,
     };
   }
 
@@ -461,9 +463,23 @@
       cutSec = s.passes * (plungeSec + travSec + s.dwellSec * 1.5 + 1.2) + 2.0;
     }
 
+    let finalLines = lines;
+    if (s.includeLineNum) {
+      let n = 10;
+      finalLines = lines.map((ln) => {
+        const t = ln.trim();
+        if (!t || t === "%" || t === ";" || /^O\d+/i.test(t) || /^\(.*\)$/.test(t)) {
+          return ln;
+        }
+        const out = `N${n} ${ln}`;
+        n += 10;
+        return out;
+      });
+    }
+
     return {
-      code: lines.join("\n"),
-      lineCount: lines.length,
+      code: finalLines.join("\n"),
+      lineCount: finalLines.length,
       xBottom,
       cycleSec: Math.max(1, Math.round(cutSec)),
     };
@@ -515,6 +531,9 @@
 
   function updateWarnings(s, vc, t60) {
     const warns = [];
+    if (s.surfaceType === "id" && s.dBlank < 12) {
+      warns.push(`Đường kính lỗ D0 = ${s.dBlank} mm khá nhỏ — kiểm tra khoảng thoát cán dao trong lỗ tránh va chạm.`);
+    }
     if (s.method === "thread60" && t60) {
       if (t60.feedMmMin > 2800) {
         const recRpm = Math.max(10, Math.floor(2400 / t60.lead / 5) * 5);
