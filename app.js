@@ -504,6 +504,31 @@
 
     const box = $("trackingBox");
     const txt = $("trackingText");
+    const sign = isId ? 1 : -1;
+    const pb = $("passBreakdown");
+    const passList = [];
+    if (s.method === "thread60") {
+      const totalP = s.passes + (s.springPass ? 1 : 0);
+      for (let i = 1; i <= totalP; i++) {
+        const isSp = s.springPass && i === totalP;
+        const d = isSp ? s.depthPerSide : s.depthPerSide * Math.sqrt(i / s.passes);
+        passList.push(`${isSp ? "Tinh" : `L${i}`}: X${fmtCoord(s.dBlank + sign * 2 * d)}`);
+      }
+    } else {
+      for (let i = 1; i <= s.passes; i++) {
+        const d = s.depthPerSide * (i / s.passes);
+        passList.push(`L${i}: X${fmtCoord(s.dBlank + sign * 2 * d)}`);
+      }
+    }
+    if (pb) {
+      if (passList.length > 1 || s.method === "thread60") {
+        pb.style.display = "block";
+        pb.textContent = `Chia lát X: ${passList.join(" → ")}`;
+      } else {
+        pb.style.display = "none";
+      }
+    }
+
     if (s.method === "thread60") {
       const t60 = calcThread60(s);
       box.className = "tracking-box ok";
