@@ -303,7 +303,8 @@
             lines.push(`G00 X${fmtCoord(xPass)}`);
             lines.push(`G32 Z${fmtCoord(s.zEnd)} F${leadStr} Q#102`);
           } else {
-            lines.push(`#102 = ${fmtCoord(zLeadFwd)} - [${zDir} * #101 * ${stepZ.toFixed(4)}]`);
+            const fwdOp = zDir < 0 ? "+" : "-";
+            lines.push(`#102 = ${fmtCoord(zLeadFwd)} ${fwdOp} [#101 * ${stepZ.toFixed(4)}]`);
             lines.push(`G00 X${fmtCoord(xClear)} Z#102`);
             lines.push(`G00 X${fmtCoord(xPass)}`);
             lines.push(`G32 Z${fmtCoord(s.zEnd)} F${leadStr}`);
@@ -322,7 +323,8 @@
               lines.push(`G00 X${fmtCoord(xPass)}`);
               lines.push(`G32 Z${fmtCoord(s.zStart)} F${leadStr} Q#102`);
             } else {
-              lines.push(`#102 = ${fmtCoord(zLeadRev)} + [${zDir} * #101 * ${stepZ.toFixed(4)}]`);
+              const revOp = zDir < 0 ? "-" : "+";
+              lines.push(`#102 = ${fmtCoord(zLeadRev)} ${revOp} [#101 * ${stepZ.toFixed(4)}]`);
               lines.push(`G00 X${fmtCoord(xClear)} Z#102`);
               lines.push(`G00 X${fmtCoord(xPass)}`);
               lines.push(`G32 Z${fmtCoord(s.zStart)} F${leadStr}`);
@@ -544,6 +546,9 @@
       }
       if (s.threadIndexMode === "q_angle" && s.controller === "mach3") {
         warns.push("Mach3 không hỗ trợ tham số góc pha Q trong G32 — hãy chuyển 'Chia đầu mối' sang 'Dịch Z_start'.");
+      }
+      if (s.threadCodeMode === "macro" && s.controller === "mach3") {
+        warns.push("Mach3 không hỗ trợ vòng lặp WHILE/DO của Fanuc Macro B — hãy chuyển 'Xuất G32' sang 'Code thẳng'.");
       }
     } else {
       if (s.depthPerSide > s.pitch * 0.6) {
