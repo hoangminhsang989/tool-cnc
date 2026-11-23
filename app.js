@@ -905,6 +905,7 @@
     renderSvg(s, res);
     renderKnurlZoom(s);
     renderSetupSheet(s, res);
+    if (typeof saveLastState === "function") saveLastState(s);
   }
 
   function downloadFile(ext) {
@@ -1012,6 +1013,36 @@
   $("btnDownloadTxt").addEventListener("click", () => downloadFile("txt"));
 
   const PRESET_KEY = "cnc_knurl_presets_v1";
+  const LAST_KEY = "cnc_knurl_last_v1";
+
+  function applyStateObject(data) {
+    if (!data || typeof data !== "object") return;
+    Object.entries(data).forEach(([k, v]) => {
+      const el = $(k);
+      if (!el) return;
+      if (el.type === "checkbox") el.checked = Boolean(v);
+      else el.value = v;
+    });
+  }
+
+  function saveLastState(s) {
+    try {
+      localStorage.setItem(LAST_KEY, JSON.stringify({ ...s, autoCut: $("autoCut").checked }));
+    } catch {}
+  }
+
+  function loadInitialState() {
+    try {
+      if (location.hash.startsWith("#cfg=")) {
+        const raw = decodeURIComponent(location.hash.slice(5));
+        const parsed = JSON.parse(atob(raw));
+        applyStateObject(parsed);
+        return;
+      }
+      const saved = localStorage.getItem(LAST_KEY);
+      if (saved) applyStateObject(JSON.parse(saved));
+    } catch {}
+  }
 
   function loadPresetsMap() {
     try {
@@ -1049,12 +1080,7 @@
     const map = loadPresetsMap();
     const data = map[key];
     if (!data) return;
-    Object.entries(data).forEach(([k, v]) => {
-      const el = $(k);
-      if (!el) return;
-      if (el.type === "checkbox") el.checked = Boolean(v);
-      else el.value = v;
-    });
+    applyStateObject(data);
     update();
     showToast(`Đã nạp: ${key}`);
   });
@@ -1069,21 +1095,31 @@
     showToast(`Đã xóa: ${key}`);
   });
 
+  $("btnShareLink").addEventListener("click", async () => {
+    try {
+      const s = { ...readState(), autoCut: $("autoCut").checked };
+      const encoded = encodeURIComponent(btoa(JSON.stringify(s)));
+      const url = `${location.origin}${location.pathname}#cfg=${encoded}`;
+      await navigator.clipboard.writeText(url);
+      showToast("Đã copy link cấu hình");
+    } catch {
+      showToast("Không thể tạo link chia sẻ");
+    }
+  });
+
   $("btnPrintSetup").addEventListener("click", () => {
     window.print();
   });
 
   $("btnReset").addEventListener("click", () => {
-    Object.entries(DEFAULTS).forEach(([k, v]) => {
-      const el = $(k);
-      if (!el) return;
-      if (el.type === "checkbox") el.checked = v;
-      else el.value = v;
-    });
+    applyStateObject(DEFAULTS);
+    localStorage.removeItem(LAST_KEY);
+    if (location.hash) history.replaceState(null, "", location.pathname);
     update();
     showToast("Đã khôi phục thông số mặc định");
   });
 
+  loadInitialState();
   refreshPresetSelect();
   update();
 })();
