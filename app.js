@@ -28,6 +28,7 @@
     pitch: 1.0,
     depthPerSide: 0.45,
     passes: 2,
+    wheelWidth: 10,
     toolCode: "T0505",
     autoDepth: true,
     autoCut: true,
@@ -94,6 +95,7 @@
       pitch: Math.max(0.1, parseFloat($("pitch").value) || 1.0),
       depthPerSide: Math.max(0.02, parseFloat($("depthPerSide").value) || 0.45),
       passes: Math.max(1, Math.min(10, parseInt($("passes").value, 10) || 1)),
+      wheelWidth: Math.max(2, parseFloat($("wheelWidth").value) || 10),
       toolCode: ($("toolCode").value || "T0505").trim().toUpperCase(),
       autoDepth: $("autoDepth").checked,
       chamferExit: $("chamferExit").checked,
@@ -196,6 +198,7 @@
     $("dwellSec").disabled = isThread60;
     $("chamferExit").disabled = isPlunge || isThread60;
     $("passMode").disabled = isPlunge || isThread60;
+    $("wheelWidth").disabled = isThread60;
     $("preTurnOptions").style.display = s.preTurn ? "grid" : "none";
     $("progNumber").disabled = !s.includeProgNum;
     $("wcs").disabled = !s.includeWcs;
@@ -598,6 +601,10 @@
       if (s.passMode === "zigzag" && s.method === "traverse" && s.passes > 1) {
         warns.push("Chế độ Zig-zag chỉ phù hợp với bánh lăn ép (Form knurling) giữ rãnh, không dùng cho dao lăn cắt 1 chiều.");
       }
+      const knurlLen = Math.abs(s.zEnd - s.zStart);
+      if (s.method === "plunge" && knurlLen > s.wheelWidth + 0.5) {
+        warns.push(`Đoạn cần lăn (${fmt(knurlLen, 1)} mm) dài hơn bề rộng bánh lăn (${s.wheelWidth} mm) — nên chuyển sang 'Chạy dọc (Traverse)'.`);
+      }
     }
 
     const wBox = $("warningsBox");
@@ -706,15 +713,16 @@
       }
     } else {
       const wheelR = isId ? 12 : 16;
+      const wheelWpx = Math.max(14, Math.min(90, (s.wheelWidth / zSpan) * (W - 155)));
       const wheelCx = zsX;
       const wheelCy = isId ? xClearY + wheelR + 2 : xClearY - wheelR - 4;
       const stemY = isId ? wheelCy + wheelR - 2 : wheelCy - wheelR - 14;
       wheelHtml = `
         <g id="animTool" transform="translate(0,0)">
           <rect x="${wheelCx - 5}" y="${stemY}" width="10" height="16" rx="2" fill="#475569"/>
-          <circle cx="${wheelCx}" cy="${wheelCy}" r="${wheelR}" fill="#fef3c7" stroke="#d97706" stroke-width="2" stroke-dasharray="3,2"/>
-          <circle cx="${wheelCx}" cy="${wheelCy}" r="4" fill="#475569"/>
-          <text x="${wheelCx + wheelR + 6}" y="${wheelCy + 4}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Bánh lăn${toolLabel} (${s.toolCode})</text>
+          <rect x="${wheelCx - wheelWpx / 2}" y="${wheelCy - wheelR}" width="${wheelWpx}" height="${wheelR * 2}" rx="3" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+          <line x1="${wheelCx - wheelWpx / 2}" y1="${wheelCy}" x2="${wheelCx + wheelWpx / 2}" y2="${wheelCy}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2"/>
+          <text x="${wheelCx + wheelWpx / 2 + 6}" y="${wheelCy + 4}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Bánh lăn ${s.wheelWidth}mm (${s.toolCode})</text>
         </g>
       `;
     }
