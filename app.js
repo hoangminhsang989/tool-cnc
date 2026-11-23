@@ -1,0 +1,680 @@
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  const MATERIAL_PRESETS = {
+    alu:        { vc: 50, fx: 0.10, fz: 0.25 },
+    brass:      { vc: 45, fx: 0.10, fz: 0.22 },
+    mild_steel: { vc: 30, fx: 0.08, fz: 0.20 },
+    c45:        { vc: 22, fx: 0.06, fz: 0.16 },
+    inox:       { vc: 15, fx: 0.05, fz: 0.12 },
+  };
+
+  const DEFAULTS = {
+    controller: "fanuc",
+    progNumber: "0105",
+    material: "mild_steel",
+    wcs: "G54",
+    dBlank: 30.0,
+    zStart: -1.0,
+    zEnd: -25.0,
+    method: "traverse",
+    passMode: "oneway",
+    pattern: "diamond",
+    pitch: 1.0,
+    depthPerSide: 0.45,
+    passes: 2,
+    toolCode: "T0505",
+    autoDepth: true,
+    autoCut: true,
+    chamferExit: false,
+    preTurn: false,
+    preTurnTool: "T0101",
+    preTurnChamfer: 0.8,
+    preTurnFeed: 0.15,
+    spindleRpm: 320,
+    feedX: 0.08,
+    feedZ: 0.20,
+    dwellSec: 1.0,
+    xSafe: 50.0,
+    zApproach: 3.0,
+    spindleDir: "M03",
+    coolant: "M08",
+    homeReturn: "G28",
+    includeProgNum: true,
+    includeSafety: true,
+    includeWcs: true,
+    includeComments: true,
+    includeSemicolon: false,
+  };
+
+  let optimalD0 = 30.0;
+  let lastGCode = "";
+
+  function fmt(num, dec = 3) {
+    return Number(num).toFixed(dec).replace(/\.?0+$/, (m) => (m.includes(".") ? "" : m));
+  }
+
+  function fmtCoord(num) {
+    return Number(num).toFixed(2);
+  }
+
+  function showToast(msg) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+
+  function readState() {
+    return {
+      controller: $("controller").value,
+      progNumber: ($("progNumber").value || "0105").trim().replace(/^O/i, ""),
+      material: $("material").value,
+      wcs: $("wcs").value,
+      dBlank: Math.max(1, parseFloat($("dBlank").value) || 30),
+      zStart: parseFloat($("zStart").value) || 0,
+      zEnd: parseFloat($("zEnd").value) || -25,
+      method: $("method").value,
+      passMode: $("passMode").value,
+      pattern: $("pattern").value,
+      pitch: Math.max(0.1, parseFloat($("pitch").value) || 1.0),
+      depthPerSide: Math.max(0.02, parseFloat($("depthPerSide").value) || 0.45),
+      passes: Math.max(1, Math.min(10, parseInt($("passes").value, 10) || 1)),
+      toolCode: ($("toolCode").value || "T0505").trim().toUpperCase(),
+      autoDepth: $("autoDepth").checked,
+      chamferExit: $("chamferExit").checked,
+      preTurn: $("preTurn").checked,
+      preTurnTool: ($("preTurnTool").value || "T0101").trim().toUpperCase(),
+      preTurnChamfer: Math.max(0, parseFloat($("preTurnChamfer").value) || 0),
+      preTurnFeed: Math.max(0.02, parseFloat($("preTurnFeed").value) || 0.15),
+      spindleRpm: Math.max(20, parseInt($("spindleRpm").value, 10) || 300),
+      feedX: Math.max(0.01, parseFloat($("feedX").value) || 0.08),
+      feedZ: Math.max(0.01, parseFloat($("feedZ").value) || 0.20),
+      dwellSec: Math.max(0, parseFloat($("dwellSec").value) || 0),
+      xSafe: Math.max(5, parseFloat($("xSafe").value) || 50),
+      zApproach: parseFloat($("zApproach").value) || 3.0,
+      spindleDir: $("spindleDir").value,
+      coolant: $("coolant").value,
+      homeReturn: $("homeReturn").value,
+      includeProgNum: $("includeProgNum").checked,
+      includeSafety: $("includeSafety").checked,
+      includeWcs: $("includeWcs").checked,
+      includeComments: $("includeComments").checked,
+      includeSemicolon: $("includeSemicolon").checked,
+    };
+  }
+
+  function applyAutoCuttingParams() {
+    if (!$("autoCut").checked) return;
+    const mat = $("material").value;
+    const preset = MATERIAL_PRESETS[mat];
+    if (!preset) return;
+    const dBlank = Math.max(1, parseFloat($("dBlank").value) || 30);
+    const pitch = Math.max(0.1, parseFloat($("pitch").value) || 1.0);
+
+    const rpm = Math.max(40, Math.min(2000, Math.round(((preset.vc * 1000) / (Math.PI * dBlank)) / 10) * 10));
+    const pitchScale = pitch >= 1.5 ? 0.85 : pitch <= 0.6 ? 1.1 : 1.0;
+    const fx = Math.max(0.03, Math.min(0.20, +(preset.fx * pitchScale).toFixed(2)));
+    const fz = Math.max(0.08, Math.min(0.35, +(preset.fz * pitchScale).toFixed(2)));
+    const dwell = Math.max(0.3, +((3 * 60) / rpm).toFixed(1));
+    const passes = (mat === "inox" || mat === "c45" || pitch >= 1.5) ? (pitch >= 1.6 ? 3 : 2) : (pitch <= 0.8 && (mat === "alu" || mat === "brass") ? 1 : 2);
+
+    $("spindleRpm").value = rpm;
+    $("feedX").value = fx.toFixed(2);
+    $("feedZ").value = fz.toFixed(2);
+    $("dwellSec").value = dwell.toFixed(1);
+    $("passes").value = passes;
+  }
+
+  function syncDepthAndUI(s) {
+    if (s.autoDepth) {
+      const d = +(s.pitch * 0.45).toFixed(3);
+      $("depthPerSide").value = d;
+      $("depthPerSide").disabled = true;
+      s.depthPerSide = d;
+    } else {
+      $("depthPerSide").disabled = false;
+    }
+
+    const isPlunge = s.method === "plunge";
+    $("feedZ").disabled = isPlunge;
+    $("chamferExit").disabled = isPlunge;
+    $("passMode").disabled = isPlunge;
+    $("preTurnOptions").style.display = s.preTurn ? "grid" : "none";
+    $("progNumber").disabled = !s.includeProgNum;
+    $("wcs").disabled = !s.includeWcs;
+
+    document.querySelectorAll("#pitchPresets .chip").forEach((btn) => {
+      const p = parseFloat(btn.dataset.pitch);
+      btn.classList.toggle("active", Math.abs(p - s.pitch) < 0.001);
+    });
+  }
+
+  function formatDwell(controller, sec) {
+    if (sec <= 0) return null;
+    if (controller === "fanuc") {
+      return `G04 X${sec.toFixed(1)}`;
+    }
+    return `G04 P${Math.round(sec * 1000)}`;
+  }
+
+  function generateGCode(s) {
+    const lines = [];
+    const cmt = (txt) => (s.includeComments ? ` (${txt})` : "");
+    const feedMode = s.controller === "mach3" ? "G95" : "G99";
+    const xClear = s.dBlank + 2.0;
+    const xBottom = s.dBlank - 2 * s.depthPerSide;
+    const dwellCmd = formatDwell(s.controller, s.dwellSec);
+    const zLen = Math.abs(s.zEnd - s.zStart);
+    const zDir = s.zEnd < s.zStart ? -1 : 1;
+
+    if (s.includeSemicolon) {
+      lines.push(";");
+    }
+    if (s.includeProgNum) {
+      if (s.controller !== "mach3") {
+        lines.push("%");
+      }
+      lines.push(`O${s.progNumber}${cmt("KNURLING PROGRAM")}`);
+    }
+    if (s.includeComments) {
+      lines.push(`(METHOD: ${s.method.toUpperCase()} | PATTERN: ${s.pattern.toUpperCase()} | PITCH: ${s.pitch}MM)`);
+      lines.push(`(D0: ${fmtCoord(s.dBlank)}MM | X_MIN: ${fmtCoord(xBottom)}MM | PASSES: ${s.passes})`);
+    }
+
+    if (s.includeSafety) {
+      lines.push(`G21 G40 G80 ${feedMode}${cmt("MM, CANCEL COMP, FEED/REV")}`);
+    }
+    if (s.includeWcs && s.wcs) {
+      lines.push(`${s.wcs}`);
+    }
+
+    if (s.preTurn) {
+      const turnRpm = Math.min(2500, Math.max(400, Math.round(s.spindleRpm * 2.5 / 10) * 10));
+      if (s.includeComments) lines.push(`(--- OP1: PRE-TURN D0 ---)`);
+      lines.push(`${s.preTurnTool}${cmt("OD FINISHING TOOL")}`);
+      lines.push(`G97 S${turnRpm} ${s.spindleDir}`);
+      if (s.coolant !== "none") lines.push(`${s.coolant}`);
+      lines.push(`G00 X${fmtCoord(xClear)} Z${fmtCoord(s.zApproach)}`);
+      if (s.preTurnChamfer > 0) {
+        const xChamferStart = Math.max(2, s.dBlank - 2 * s.preTurnChamfer);
+        lines.push(`G00 X${fmtCoord(xChamferStart)} Z0.5`);
+        lines.push(`G01 Z0.0 F${s.preTurnFeed.toFixed(2)}`);
+        lines.push(`G01 X${fmtCoord(s.dBlank)} Z-${s.preTurnChamfer.toFixed(2)}${cmt(`CHAMFER C${s.preTurnChamfer}`)}`);
+      } else {
+        lines.push(`G00 X${fmtCoord(s.dBlank)} Z0.5`);
+      }
+      lines.push(`G01 Z${fmtCoord(s.zEnd)} F${s.preTurnFeed.toFixed(2)}${cmt(`TURN TO D0=${fmtCoord(s.dBlank)}`)}`);
+      lines.push(`G00 X${fmtCoord(xClear)}`);
+      lines.push(`G00 Z${fmtCoord(s.zApproach)}`);
+      if (s.coolant !== "none") lines.push("M09");
+      lines.push(s.homeReturn === "G28" ? "G28 U0 W0" : `G00 X${fmtCoord(Math.max(s.xSafe, xClear))} Z${fmtCoord(s.zApproach)}`);
+      lines.push(`M01${cmt("OPTIONAL STOP - CHECK D0")}`);
+      lines.push("");
+    }
+
+    lines.push(`${s.toolCode}${cmt("KNURLING TOOL")}`);
+    lines.push(`G97 S${s.spindleRpm} ${s.spindleDir}${cmt("CONSTANT RPM - DO NOT USE G96")}`);
+    if (s.coolant !== "none") {
+      lines.push(`${s.coolant}${cmt("COOLANT ON")}`);
+    }
+
+    lines.push(`G00 X${fmtCoord(Math.max(s.xSafe, xClear))} Z${fmtCoord(s.zApproach)}${cmt("SAFE APPROACH")}`);
+
+    if (s.method === "plunge") {
+      lines.push(`G00 Z${fmtCoord(s.zStart)}${cmt("POSITION Z")}`);
+      lines.push(`G00 X${fmtCoord(xClear)}`);
+
+      for (let i = 1; i <= s.passes; i++) {
+        const frac = i / s.passes;
+        const xPass = s.dBlank - 2 * s.depthPerSide * frac;
+        lines.push(`G01 X${fmtCoord(xPass)} F${s.feedX.toFixed(2)}${cmt(`PLUNGE PASS ${i}/${s.passes}`)}`);
+        if (dwellCmd && i === s.passes) {
+          lines.push(`${dwellCmd}${cmt(`DWELL ${s.dwellSec}S`)}`);
+        }
+      }
+      lines.push(`G00 X${fmtCoord(xClear)}${cmt("RETRACT X")}`);
+    } else if (s.passMode === "zigzag") {
+      lines.push(`G00 X${fmtCoord(xClear)} Z${fmtCoord(s.zStart)}${cmt("START POSITION ZIGZAG")}`);
+      for (let i = 1; i <= s.passes; i++) {
+        const frac = i / s.passes;
+        const xPass = s.dBlank - 2 * s.depthPerSide * frac;
+        const goingEnd = i % 2 === 1;
+        const targetZ = goingEnd ? s.zEnd : s.zStart;
+        if (s.includeComments) lines.push(`(--- ZIGZAG PASS ${i}/${s.passes} ---)`);
+        lines.push(`G01 X${fmtCoord(xPass)} F${s.feedX.toFixed(2)}${cmt("PLUNGE TO DEPTH")}`);
+        if (dwellCmd) lines.push(`${dwellCmd}${cmt("ENGAGE KNURL")}`);
+        lines.push(`G01 Z${fmtCoord(targetZ)} F${s.feedZ.toFixed(2)}${cmt(goingEnd ? "TRAVERSE FORWARD" : "TRAVERSE RETURN")}`);
+        if (i === s.passes && s.chamferExit) {
+          const xExit = s.dBlank + 1.0;
+          const zExit = targetZ + (goingEnd ? zDir : -zDir) * 1.0;
+          lines.push(`G01 X${fmtCoord(xExit)} Z${fmtCoord(zExit)} F${s.feedZ.toFixed(2)}${cmt("45 DEG EXIT")}`);
+        } else if (dwellCmd && i === s.passes) {
+          lines.push(`${dwellCmd}${cmt("CLEANUP DWELL")}`);
+        }
+      }
+      lines.push(`G00 X${fmtCoord(xClear)}${cmt("RETRACT X")}`);
+    } else {
+      lines.push(`G00 X${fmtCoord(xClear)} Z${fmtCoord(s.zStart)}${cmt("START POSITION")}`);
+
+      for (let i = 1; i <= s.passes; i++) {
+        const frac = i / s.passes;
+        const xPass = s.dBlank - 2 * s.depthPerSide * frac;
+        if (s.includeComments) lines.push(`(--- PASS ${i}/${s.passes} ---)`);
+        lines.push(`G01 X${fmtCoord(xPass)} F${s.feedX.toFixed(2)}${cmt("PLUNGE TO DEPTH")}`);
+        if (dwellCmd) {
+          lines.push(`${dwellCmd}${cmt("ENGAGE KNURL")}`);
+        }
+        lines.push(`G01 Z${fmtCoord(s.zEnd)} F${s.feedZ.toFixed(2)}${cmt("TRAVERSE KNURL")}`);
+        if (s.chamferExit) {
+          const xExit = s.dBlank + 1.0;
+          const zExit = s.zEnd + zDir * 1.0;
+          lines.push(`G01 X${fmtCoord(xExit)} Z${fmtCoord(zExit)} F${s.feedZ.toFixed(2)}${cmt("45 DEG EXIT")}`);
+        } else if (dwellCmd) {
+          lines.push(`${dwellCmd}${cmt("CLEANUP DWELL")}`);
+        }
+        lines.push(`G00 X${fmtCoord(xClear)}${cmt("RETRACT X")}`);
+        if (i < s.passes) {
+          lines.push(`G00 Z${fmtCoord(s.zStart)}${cmt("RETURN Z FOR NEXT PASS")}`);
+        }
+      }
+    }
+
+    lines.push(`G00 Z${fmtCoord(s.zApproach)}${cmt("CLEAR Z")}`);
+    if (s.coolant !== "none") {
+      lines.push(`M09${cmt("COOLANT OFF")}`);
+    }
+    lines.push(`M05${cmt("SPINDLE STOP")}`);
+    if (s.homeReturn === "G28") {
+      lines.push(`G28 U0 W0${cmt("HOME RETURN")}`);
+    } else {
+      lines.push(`G00 X${fmtCoord(Math.max(s.xSafe, xClear))} Z${fmtCoord(s.zApproach)}${cmt("SAFE PARK")}`);
+    }
+    lines.push("M30");
+    if (s.includeProgNum && s.controller !== "mach3") {
+      lines.push("%");
+    }
+    if (s.includeSemicolon) {
+      lines.push(";");
+    }
+
+    // Estimate cycle time (seconds)
+    const revPerSec = s.spindleRpm / 60;
+    let cutSec = 0;
+    if (s.method === "plunge") {
+      cutSec = (s.depthPerSide / (s.feedX * revPerSec)) + s.dwellSec + 2.0;
+    } else {
+      const plungeSec = (s.depthPerSide / s.passes) / (s.feedX * revPerSec);
+      const travSec = zLen / (s.feedZ * revPerSec);
+      cutSec = s.passes * (plungeSec + travSec + s.dwellSec * 1.5 + 1.2) + 2.0;
+    }
+
+    return {
+      code: lines.join("\n"),
+      lineCount: lines.length,
+      xBottom,
+      cycleSec: Math.max(1, Math.round(cutSec)),
+    };
+  }
+
+  function updateMetrics(s, res) {
+    $("mXBottom").textContent = `${res.xBottom.toFixed(2)} mm`;
+    const dFinal = s.dBlank + 0.4 * s.pitch;
+    $("mDFinal").textContent = `${dFinal.toFixed(2)} mm`;
+
+    const vc = (Math.PI * s.dBlank * s.spindleRpm) / 1000;
+    $("mVc").textContent = `${vc.toFixed(1)} m/ph`;
+
+    const mins = String(Math.floor(res.cycleSec / 60)).padStart(2, "0");
+    const secs = String(res.cycleSec % 60).padStart(2, "0");
+    $("mCycleTime").textContent = `${mins}:${secs}`;
+
+    const teeth = (Math.PI * s.dBlank) / s.pitch;
+    const nearest = Math.round(teeth);
+    const diff = Math.abs(teeth - nearest);
+    optimalD0 = +((nearest * s.pitch) / Math.PI).toFixed(2);
+
+    const box = $("trackingBox");
+    const txt = $("trackingText");
+    if (diff <= 0.12) {
+      box.className = "tracking-box ok";
+      txt.textContent = `Đạt (${teeth.toFixed(2)} răng/chu vi, sai lệch ${diff.toFixed(2)}). Bánh lăn ăn khớp tốt.`;
+      $("btnApplyOptD").style.display = "none";
+    } else {
+      box.className = "tracking-box warn";
+      txt.textContent = `Lệch (${teeth.toFixed(2)} răng/chu vi, dễ bị nhảy răng/bóng ma). D0 tối ưu gần nhất: ${optimalD0} mm (${nearest} răng).`;
+      $("btnApplyOptD").style.display = "inline-block";
+    }
+
+    updateWarnings(s, vc);
+  }
+
+  function updateWarnings(s, vc) {
+    const warns = [];
+    if (s.depthPerSide > s.pitch * 0.6) {
+      warns.push(`Chiều sâu ăn (${s.depthPerSide} mm) lớn hơn 0.6 × Pitch — dễ gãy chốt hoặc bẹp đỉnh răng.`);
+    }
+    if ((s.material === "inox" && vc > 24) || vc > 65) {
+      warns.push(`Vận tốc cắt Vc = ${vc.toFixed(1)} m/phút khá cao — dễ dính phôi hoặc cháy bánh lăn.`);
+    }
+    if (s.method === "traverse" && s.zStart > -0.3 && !s.preTurn) {
+      warns.push("Z bắt đầu sát mặt đầu: nên vát mép đầu C0.5–C1.0 (hoặc bật Tiện tinh D0) để bánh lăn vào êm.");
+    }
+    if (s.passMode === "zigzag" && s.method === "traverse" && s.passes > 1) {
+      warns.push("Chế độ Zig-zag chỉ phù hợp với bánh lăn ép (Form knurling) giữ rãnh, không dùng cho dao lăn cắt 1 chiều.");
+    }
+
+    const wBox = $("warningsBox");
+    if (warns.length === 0) {
+      wBox.style.display = "none";
+      wBox.innerHTML = "";
+    } else {
+      wBox.style.display = "flex";
+      wBox.innerHTML = warns.map((w) => `<div>• ${w}</div>`).join("");
+    }
+  }
+
+  function renderSvg(s, res) {
+    const svg = $("previewSvg");
+    const W = 680;
+    const H = 265;
+    const cy = H * 0.56;
+
+    const zMin = Math.min(s.zStart, s.zEnd, 0) - 6;
+    const zMax = Math.max(s.zStart, s.zEnd, s.zApproach, 5) + 6;
+    const zSpan = Math.max(15, zMax - zMin);
+
+    const mapZ = (z) => 86 + ((z - zMin) / zSpan) * (W - 155);
+    const halfD = Math.min(56, Math.max(26, s.dBlank * 1.0));
+
+    const z0X = mapZ(0);
+    const zsX = mapZ(s.zStart);
+    const zeX = mapZ(s.zEnd);
+    const zaX = mapZ(s.zApproach);
+
+    const knurlLeft = Math.min(zsX, zeX);
+    const knurlWidth = Math.max(14, Math.abs(zeX - zsX));
+    const stockLeft = Math.min(knurlLeft - 38, 72);
+    const stockWidth = Math.max(24, z0X - stockLeft);
+
+    const topY = cy - halfD;
+    const botY = cy + halfD;
+    const xClearY = topY - 16;
+    const xDepthY = topY + 7;
+    const knurlLen = Math.abs(s.zEnd - s.zStart);
+
+    // Build knurl pattern lines
+    let hatch = "";
+    const step = 7;
+    if (s.pattern === "straight") {
+      for (let y = topY + 3; y < botY - 2; y += 6) {
+        hatch += `<line x1="${knurlLeft}" y1="${y}" x2="${knurlLeft + knurlWidth}" y2="${y}" stroke="#d97706" stroke-width="1" opacity="0.65"/>`;
+      }
+    } else {
+      for (let x = knurlLeft; x <= knurlLeft + knurlWidth; x += step) {
+        const x2 = Math.min(knurlLeft + knurlWidth, x + 10);
+        hatch += `<line x1="${x}" y1="${topY}" x2="${x2}" y2="${botY}" stroke="#d97706" stroke-width="1" opacity="0.55"/>`;
+        if (s.pattern === "diamond") {
+          hatch += `<line x1="${x2}" y1="${topY}" x2="${x}" y2="${botY}" stroke="#d97706" stroke-width="1" opacity="0.55"/>`;
+        }
+      }
+    }
+
+    // Knurling wheel icon above Z_start
+    const wheelR = 16;
+    const wheelCx = zsX;
+    const wheelCy = xClearY - wheelR - 4;
+    const wheelHtml = `
+      <g>
+        <rect x="${wheelCx - 5}" y="${wheelCy - wheelR - 14}" width="10" height="16" rx="2" fill="#475569"/>
+        <circle cx="${wheelCx}" cy="${wheelCy}" r="${wheelR}" fill="#fef3c7" stroke="#d97706" stroke-width="2" stroke-dasharray="3,2"/>
+        <circle cx="${wheelCx}" cy="${wheelCy}" r="4.5" fill="#475569"/>
+        <text x="${wheelCx + wheelR + 6}" y="${wheelCy + 4}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Bánh lăn (${s.toolCode})</text>
+      </g>
+    `;
+
+    // Toolpath polyline
+    let pathHtml = "";
+    if (s.method === "plunge") {
+      pathHtml = `
+        <line x1="${zaX}" y1="${xClearY - 12}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
+        <line x1="${zsX}" y1="${xClearY}" x2="${zsX}" y2="${xDepthY}" stroke="#dc2626" stroke-width="2.4" marker-end="url(#arrowRed)"/>
+        <line x1="${zsX}" y1="${xDepthY}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.5" stroke-dasharray="5,4"/>
+        <text x="${zsX - 8}" y="${xDepthY - 3}" fill="#dc2626" font-size="10.5" font-family="monospace" text-anchor="end">Fx=${s.feedX}</text>
+      `;
+    } else {
+      pathHtml = `
+        <line x1="${zaX}" y1="${xClearY - 12}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
+        <line x1="${zsX}" y1="${xClearY}" x2="${zsX}" y2="${xDepthY}" stroke="#dc2626" stroke-width="2.0"/>
+        <line x1="${zsX}" y1="${xDepthY}" x2="${zeX}" y2="${xDepthY}" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrowRed)"/>
+        <line x1="${zeX}" y1="${xDepthY}" x2="${zeX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
+        <line x1="${zeX}" y1="${xClearY}" x2="${zaX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.4" stroke-dasharray="5,4"/>
+        <text x="${(zsX + zeX) / 2}" y="${xDepthY - 5}" fill="#dc2626" font-size="10.5" font-family="monospace" text-anchor="middle">Fz=${s.feedZ} (${s.passes} pass)</text>
+      `;
+    }
+
+    // Dimension lines: Diameter D0 (vertical) and Knurl Length L (horizontal)
+    const dimDiaX = stockLeft + 14;
+    const dimLenY = botY + 26;
+
+    svg.innerHTML = `
+      <defs>
+        <clipPath id="knurlClip">
+          <rect x="${knurlLeft}" y="${topY}" width="${knurlWidth}" height="${halfD * 2}"/>
+        </clipPath>
+        <marker id="arrowRed" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+          <polygon points="0 0, 7 3.5, 0 7" fill="#dc2626"/>
+        </marker>
+        <marker id="dimTick" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+          <polygon points="0 3, 6 0, 6 6" fill="#475569"/>
+        </marker>
+      </defs>
+
+      <!-- 3-Jaw Chuck -->
+      <rect x="${stockLeft - 20}" y="${topY - 16}" width="20" height="18" rx="2" fill="#94a3b8" stroke="#64748b"/>
+      <rect x="${stockLeft - 20}" y="${botY - 2}" width="20" height="18" rx="2" fill="#94a3b8" stroke="#64748b"/>
+      <rect x="${stockLeft - 14}" y="${topY - 2}" width="14" height="${halfD * 2 + 4}" fill="#cbd5e1" stroke="#64748b"/>
+      <text x="${stockLeft - 24}" y="${cy + 3}" fill="#475569" font-size="10" font-family="sans-serif" text-anchor="end">Mâm cặp</text>
+
+      <!-- Stock -->
+      <rect x="${stockLeft}" y="${topY}" width="${stockWidth}" height="${halfD * 2}" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+
+      <!-- Knurl Zone -->
+      <rect x="${knurlLeft}" y="${topY}" width="${knurlWidth}" height="${halfD * 2}" fill="rgba(217,119,6,0.14)" stroke="#d97706" stroke-width="1.4"/>
+      <g clip-path="url(#knurlClip)">${hatch}</g>
+
+      <!-- Centerline -->
+      <line x1="25" y1="${cy}" x2="${W - 20}" y2="${cy}" stroke="#64748b" stroke-width="1" stroke-dasharray="12,4,2,4"/>
+
+      <!-- Z0 Datum -->
+      <line x1="${z0X}" y1="18" x2="${z0X}" y2="${H - 22}" stroke="#16a34a" stroke-width="1.2" stroke-dasharray="4,3"/>
+      <text x="${z0X + 4}" y="28" fill="#16a34a" font-size="11" font-family="monospace" font-weight="600">Z0 (Mặt đầu)</text>
+
+      <!-- Wheel & Toolpath -->
+      ${wheelHtml}
+      ${pathHtml}
+
+      <!-- Dimension: Ø D0 -->
+      <line x1="${dimDiaX}" y1="${topY}" x2="${dimDiaX}" y2="${botY}" stroke="#0f172a" stroke-width="1"/>
+      <line x1="${dimDiaX - 4}" y1="${topY}" x2="${dimDiaX + 4}" y2="${topY}" stroke="#0f172a" stroke-width="1"/>
+      <line x1="${dimDiaX - 4}" y1="${botY}" x2="${dimDiaX + 4}" y2="${botY}" stroke="#0f172a" stroke-width="1"/>
+      <rect x="${dimDiaX + 4}" y="${cy - 9}" width="64" height="16" rx="3" fill="#f8fafc" opacity="0.9"/>
+      <text x="${dimDiaX + 7}" y="${cy + 3}" fill="#0f172a" font-size="11.5" font-family="monospace" font-weight="600">Ø${fmtCoord(s.dBlank)}</text>
+
+      <!-- Dimension: Knurl Length L -->
+      <line x1="${zsX}" y1="${botY + 4}" x2="${zsX}" y2="${dimLenY + 5}" stroke="#64748b" stroke-width="0.9" stroke-dasharray="2,2"/>
+      <line x1="${zeX}" y1="${botY + 4}" x2="${zeX}" y2="${dimLenY + 5}" stroke="#64748b" stroke-width="0.9" stroke-dasharray="2,2"/>
+      <line x1="${knurlLeft}" y1="${dimLenY}" x2="${knurlLeft + knurlWidth}" y2="${dimLenY}" stroke="#0f172a" stroke-width="1.1"/>
+      <text x="${(zsX + zeX) / 2}" y="${dimLenY - 5}" fill="#0f172a" font-size="11" font-family="monospace" font-weight="600" text-anchor="middle">L = ${fmt(knurlLen, 1)} mm (P=${s.pitch})</text>
+      <text x="${zsX}" y="${dimLenY + 15}" fill="#475569" font-size="10.5" font-family="monospace" text-anchor="middle">Z${fmt(s.zStart, 1)}</text>
+      <text x="${zeX}" y="${dimLenY + 15}" fill="#475569" font-size="10.5" font-family="monospace" text-anchor="middle">Z${fmt(s.zEnd, 1)}</text>
+
+      <!-- X_min Callout -->
+      <text x="${zeX - 4}" y="${xDepthY + 14}" fill="#b45309" font-size="10.5" font-family="monospace" font-weight="600" text-anchor="end">X_min=${fmtCoord(res.xBottom)}</text>
+    `;
+  }
+
+  function renderSetupSheet(s, res) {
+    const el = $("setupSheet");
+    const matName = $("material").options[$("material").selectedIndex]?.text || s.material;
+    el.innerHTML = `
+      <h1>PHIẾU SETUP LĂN NHÁM CNC — O${s.progNumber}</h1>
+      <p class="setup-sub">Hệ ĐK: ${s.controller.toUpperCase()} | Vật liệu: ${matName} | Gốc: ${s.wcs || "Mặc định"}</p>
+      <table>
+        <tr><th>Dao lăn nhám</th><td>${s.toolCode}</td><th>ĐK phôi D0</th><td>Ø${fmtCoord(s.dBlank)} mm</td></tr>
+        <tr><th>Phương pháp</th><td>${s.method.toUpperCase()} (${s.pattern.toUpperCase()})</td><th>Bước nhám Pitch</th><td>${s.pitch} mm</td></tr>
+        <tr><th>Tọa độ Z</th><td>Z${fmt(s.zStart, 1)} → Z${fmt(s.zEnd, 1)} mm</td><th>X Đáy răng (Min X)</th><td>X${fmtCoord(res.xBottom)} mm (${s.passes} pass)</td></tr>
+        <tr><th>Tốc độ S</th><td>G97 S${s.spindleRpm} ${s.spindleDir}</td><th>Bước tiến F</th><td>Fx ${s.feedX.toFixed(2)} / Fz ${s.feedZ.toFixed(2)} mm/vòng</td></tr>
+        ${s.preTurn ? `<tr><th>Tiện tinh D0</th><td>${s.preTurnTool} (F${s.preTurnFeed.toFixed(2)})</td><th>Vát mép đầu</th><td>C${s.preTurnChamfer} mm</td></tr>` : ""}
+      </table>
+      <pre>${res.code}</pre>
+    `;
+  }
+
+  function update() {
+    const s = readState();
+    syncDepthAndUI(s);
+    const res = generateGCode(s);
+    lastGCode = res.code;
+    $("gcodeOutput").textContent = res.code;
+    $("lineCount").textContent = `${res.lineCount} dòng`;
+    updateMetrics(s, res);
+    renderSvg(s, res);
+    renderSetupSheet(s, res);
+  }
+
+  function downloadFile(ext) {
+    const prog = ($("progNumber").value || "0105").trim();
+    const blob = new Blob([lastGCode], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `O${prog}_KNURL.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Đã tải O${prog}_KNURL.${ext}`);
+  }
+
+  // Event bindings
+  document.querySelectorAll("input, select").forEach((el) => {
+    el.addEventListener("input", () => {
+      if (["spindleRpm", "feedX", "feedZ", "dwellSec", "passes"].includes(el.id)) {
+        $("autoCut").checked = false;
+      }
+      if (["dBlank", "pitch"].includes(el.id)) {
+        applyAutoCuttingParams();
+      }
+      update();
+    });
+    el.addEventListener("change", () => {
+      if (["material", "autoCut", "dBlank", "pitch"].includes(el.id)) {
+        applyAutoCuttingParams();
+      }
+      update();
+    });
+  });
+
+  document.querySelectorAll("#pitchPresets .chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $("pitch").value = btn.dataset.pitch;
+      applyAutoCuttingParams();
+      update();
+    });
+  });
+
+  $("btnApplyOptD").addEventListener("click", () => {
+    $("dBlank").value = optimalD0.toFixed(2);
+    applyAutoCuttingParams();
+    update();
+    showToast(`Đã cập nhật D0 = ${optimalD0.toFixed(2)} mm`);
+  });
+
+  $("btnCopy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(lastGCode);
+      showToast("Đã copy G-Code vào clipboard");
+    } catch {
+      showToast("Không thể copy tự động, hãy bôi đen và Ctrl+C");
+    }
+  });
+
+  $("btnDownloadNc").addEventListener("click", () => downloadFile("nc"));
+  $("btnDownloadTxt").addEventListener("click", () => downloadFile("txt"));
+
+  const PRESET_KEY = "cnc_knurl_presets_v1";
+
+  function loadPresetsMap() {
+    try {
+      return JSON.parse(localStorage.getItem(PRESET_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  function refreshPresetSelect(selectedName = "") {
+    const sel = $("presetSelect");
+    const map = loadPresetsMap();
+    const names = Object.keys(map).sort();
+    sel.innerHTML = `<option value="">-- Cấu hình đã lưu (${names.length}) --</option>` +
+      names.map((n) => `<option value="${n.replace(/"/g, "&quot;")}">${n}</option>`).join("");
+    if (selectedName && map[selectedName]) sel.value = selectedName;
+  }
+
+  $("btnSavePreset").addEventListener("click", () => {
+    const s = readState();
+    const defName = `Ø${s.dBlank} P${s.pitch} ${s.material}`;
+    const name = prompt("Nhập tên cấu hình để lưu:", defName);
+    if (!name || !name.trim()) return;
+    const key = name.trim();
+    const map = loadPresetsMap();
+    map[key] = { ...s, autoCut: $("autoCut").checked };
+    localStorage.setItem(PRESET_KEY, JSON.stringify(map));
+    refreshPresetSelect(key);
+    showToast(`Đã lưu: ${key}`);
+  });
+
+  $("presetSelect").addEventListener("change", () => {
+    const key = $("presetSelect").value;
+    if (!key) return;
+    const map = loadPresetsMap();
+    const data = map[key];
+    if (!data) return;
+    Object.entries(data).forEach(([k, v]) => {
+      const el = $(k);
+      if (!el) return;
+      if (el.type === "checkbox") el.checked = Boolean(v);
+      else el.value = v;
+    });
+    update();
+    showToast(`Đã nạp: ${key}`);
+  });
+
+  $("btnDelPreset").addEventListener("click", () => {
+    const key = $("presetSelect").value;
+    if (!key) return;
+    const map = loadPresetsMap();
+    delete map[key];
+    localStorage.setItem(PRESET_KEY, JSON.stringify(map));
+    refreshPresetSelect();
+    showToast(`Đã xóa: ${key}`);
+  });
+
+  $("btnPrintSetup").addEventListener("click", () => {
+    window.print();
+  });
+
+  $("btnReset").addEventListener("click", () => {
+    Object.entries(DEFAULTS).forEach(([k, v]) => {
+      const el = $(k);
+      if (!el) return;
+      if (el.type === "checkbox") el.checked = v;
+      else el.value = v;
+    });
+    update();
+    showToast("Đã khôi phục thông số mặc định");
+  });
+
+  refreshPresetSelect();
+  update();
+})();

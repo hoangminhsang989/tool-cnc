@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CNC Lathe Knurling — Tạo Chương Trình Lăn Nhám</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="badge">CNC-KNURL</span>
+      <h1>Tạo Chương Trình Lăn Nhám Tiện CNC</h1>
+    </div>
+    <div class="topbar-actions">
+      <select id="presetSelect" class="preset-select" title="Cấu hình đã lưu">
+        <option value="">-- Cấu hình đã lưu --</option>
+      </select>
+      <button type="button" id="btnSavePreset" class="btn btn-ghost" title="Lưu cấu hình">Lưu</button>
+      <button type="button" id="btnDelPreset" class="btn btn-ghost" title="Xóa cấu hình">Xóa</button>
+      <span class="sep"></span>
+      <button type="button" id="btnPrintSetup" class="btn btn-ghost">In Setup</button>
+      <button type="button" id="btnReset" class="btn btn-ghost">Mặc định</button>
+      <button type="button" id="btnCopy" class="btn btn-secondary">Copy</button>
+      <button type="button" id="btnDownloadNc" class="btn btn-primary">Tải .NC</button>
+      <button type="button" id="btnDownloadTxt" class="btn btn-ghost">.TXT</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- LEFT: COMPACT INPUTS -->
+    <section class="panel inputs-panel">
+      <div class="card">
+        <h2>1. Phôi &amp; Dao lăn nhám</h2>
+        <div class="grid-3">
+          <label class="field">
+            <span>Hệ điều khiển</span>
+            <select id="controller">
+              <option value="fanuc">Fanuc / GSK / Mit</option>
+              <option value="haas">Haas</option>
+              <option value="mach3">Mach3 / LinuxCNC</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Vật liệu phôi</span>
+            <select id="material">
+              <option value="custom">Tùy chỉnh</option>
+              <option value="alu">Nhôm (Al 6061)</option>
+              <option value="brass">Đồng thau</option>
+              <option value="mild_steel" selected>Thép mềm</option>
+              <option value="c45">Thép C45 / 40X</option>
+              <option value="inox">Inox 304</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Số CT (O-Num)</span>
+            <input type="text" id="progNumber" value="0105" maxlength="8" />
+          </label>
+        </div>
+
+        <div class="grid-3">
+          <label class="field">
+            <span>ĐK phôi D0 (mm)</span>
+            <input type="number" id="dBlank" value="30.0" step="0.05" min="1" />
+          </label>
+          <label class="field">
+            <span>Z bắt đầu (mm)</span>
+            <input type="number" id="zStart" value="-1.0" step="0.5" />
+          </label>
+          <label class="field">
+            <span>Z kết thúc (mm)</span>
+            <input type="number" id="zEnd" value="-25.0" step="0.5" />
+          </label>
+        </div>
+
+        <div class="grid-3">
+          <label class="field">
+            <span>Phương pháp</span>
+            <select id="method">
+              <option value="traverse" selected>Chạy dọc (Traverse)</option>
+              <option value="plunge">Ép tại chỗ (Plunge)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Hoa văn</span>
+            <select id="pattern">
+              <option value="diamond" selected>Ca-rô (Diamond)</option>
+              <option value="straight">Thẳng (Straight)</option>
+              <option value="diagonal">Chéo (Diagonal)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Mã dao lăn</span>
+            <input type="text" id="toolCode" value="T0505" maxlength="8" />
+          </label>
+        </div>
+
+        <div class="field" style="margin-bottom: 10px;">
+          <span>Bước nhám Pitch P (mm)</span>
+          <div class="pitch-row">
+            <input type="number" id="pitch" value="1.0" step="0.1" min="0.2" max="5.0" />
+            <div class="chip-group" id="pitchPresets">
+              <button type="button" class="chip" data-pitch="0.5">0.5</button>
+              <button type="button" class="chip" data-pitch="0.6">0.6</button>
+              <button type="button" class="chip" data-pitch="0.8">0.8</button>
+              <button type="button" class="chip active" data-pitch="1.0">1.0</button>
+              <button type="button" class="chip" data-pitch="1.2">1.2</button>
+              <button type="button" class="chip" data-pitch="1.5">1.5</button>
+              <button type="button" class="chip" data-pitch="2.0">2.0</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <label class="field">
+            <span>Chiều sâu ăn X/bên (mm)</span>
+            <input type="number" id="depthPerSide" value="0.45" step="0.02" min="0.05" />
+          </label>
+          <label class="field">
+            <span>Số lượt cắt (Passes)</span>
+            <input type="number" id="passes" value="2" step="1" min="1" max="10" />
+          </label>
+        </div>
+
+        <label class="checkbox" style="margin-top: 8px;">
+          <input type="checkbox" id="autoDepth" checked />
+          <span>Tự tính chiều sâu theo Pitch (0.45 × P)</span>
+        </label>
+      </div>
+
+      <div class="card">
+        <div class="card-head" style="margin-bottom: 10px;">
+          <h2>2. Chế độ cắt</h2>
+          <label class="checkbox inline-check">
+            <input type="checkbox" id="autoCut" checked />
+            <span>Tự tính S, F, Dwell</span>
+          </label>
+        </div>
+
+        <div class="grid-4">
+          <label class="field">
+            <span>S (RPM)</span>
+            <input type="number" id="spindleRpm" value="320" step="10" min="20" max="3000" />
+          </label>
+          <label class="field">
+            <span>Fx (mm/v)</span>
+            <input type="number" id="feedX" value="0.08" step="0.01" min="0.01" max="1.0" />
+          </label>
+          <label class="field">
+            <span>Fz (mm/v)</span>
+            <input type="number" id="feedZ" value="0.20" step="0.02" min="0.02" max="2.0" />
+          </label>
+          <label class="field">
+            <span>Dwell (s)</span>
+            <input type="number" id="dwellSec" value="1.0" step="0.1" min="0" max="10" />
+          </label>
+        </div>
+
+        <details class="advanced-box">
+          <summary>Tùy chọn nâng cao (Tiện tinh D0, An toàn, M-code)</summary>
+          <div class="adv-body">
+            <div class="grid-3">
+              <label class="field">
+                <span>Chạy nhiều pass</span>
+                <select id="passMode">
+                  <option value="oneway" selected>Một chiều</option>
+                  <option value="zigzag">Hai chiều (Zig-zag)</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>X an toàn (mm)</span>
+                <input type="number" id="xSafe" value="50.0" step="1" min="5" />
+              </label>
+              <label class="field">
+                <span>Z tiếp cận (mm)</span>
+                <input type="number" id="zApproach" value="3.0" step="0.5" min="0.5" />
+              </label>
+            </div>
+
+            <div class="grid-4">
+              <label class="field">
+                <span>Gốc tọa độ</span>
+                <select id="wcs">
+                  <option value="G54" selected>G54</option>
+                  <option value="G55">G55</option>
+                  <option value="G56">G56</option>
+                  <option value="">Không</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Chiều quay</span>
+                <select id="spindleDir">
+                  <option value="M03" selected>M03</option>
+                  <option value="M04">M04</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Tưới nguội</span>
+                <select id="coolant">
+                  <option value="M08" selected>M08</option>
+                  <option value="none">Tắt</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Về gốc</span>
+                <select id="homeReturn">
+                  <option value="G28" selected>G28</option>
+                  <option value="G00">G00</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="grid-2 check-row">
+              <label class="checkbox">
+                <input type="checkbox" id="chamferExit" />
+                <span>Thoát dao vát 45° cuối Z</span>
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" id="preTurn" />
+                <span>Tiện tinh D0 trước khi lăn</span>
+              </label>
+            </div>
+
+            <div id="preTurnOptions" class="grid-3 sub-grid" style="display: none;">
+              <label class="field">
+                <span>Dao tiện tinh</span>
+                <input type="text" id="preTurnTool" value="T0101" maxlength="8" />
+              </label>
+              <label class="field">
+                <span>Vát đầu C (mm)</span>
+                <input type="number" id="preTurnChamfer" value="0.8" step="0.1" min="0" max="5" />
+              </label>
+              <label class="field">
+                <span>Bước tiến F</span>
+                <input type="number" id="preTurnFeed" value="0.15" step="0.02" min="0.02" max="1" />
+              </label>
+            </div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- RIGHT: ANALYSIS, PREVIEW, G-CODE -->
+    <section class="panel outputs-panel">
+      <div class="card metrics-card">
+        <div class="metrics-grid">
+          <div class="metric">
+            <span class="metric-label">X Đáy răng (Min X)</span>
+            <strong class="metric-value" id="mXBottom">29.10 mm</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">ĐK sau lăn (ước tính)</span>
+            <strong class="metric-value" id="mDFinal">30.40 mm</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Vc thực tế</span>
+            <strong class="metric-value" id="mVc">30.2 m/ph</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Thời gian lăn</span>
+            <strong class="metric-value" id="mCycleTime">00:14</strong>
+          </div>
+        </div>
+
+        <div class="tracking-box" id="trackingBox">
+          <div>
+            <strong>Khớp răng chu vi:</strong>
+            <span id="trackingText">—</span>
+          </div>
+          <button type="button" id="btnApplyOptD" class="btn btn-small">Dùng D0 tối ưu</button>
+        </div>
+        <div id="warningsBox" class="warnings-box" style="display: none;"></div>
+      </div>
+
+      <div class="card preview-card">
+        <div class="card-head">
+          <h2>Mô phỏng &amp; Kích thước gia công (2D)</h2>
+          <div class="legend">
+            <span><i class="dot dot-rapid"></i>G00 Nhanh</span>
+            <span><i class="dot dot-feed"></i>G01 Lăn</span>
+            <span><i class="dot dot-knurl"></i>Vùng nhám</span>
+          </div>
+        </div>
+        <svg id="previewSvg" viewBox="0 0 680 265" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+
+      <div class="card gcode-card">
+        <div class="card-head">
+          <h2>Chương trình G-Code</h2>
+          <div class="gcode-meta">
+            <label class="checkbox inline-check">
+              <input type="checkbox" id="includeProgNum" checked />
+              <span>Số CT</span>
+            </label>
+            <label class="checkbox inline-check">
+              <input type="checkbox" id="includeSafety" checked />
+              <span>G21 G40 G80 G99</span>
+            </label>
+            <label class="checkbox inline-check">
+              <input type="checkbox" id="includeWcs" checked />
+              <span>G54</span>
+            </label>
+            <label class="checkbox inline-check">
+              <input type="checkbox" id="includeComments" checked />
+              <span>Ghi chú</span>
+            </label>
+            <label class="checkbox inline-check">
+              <input type="checkbox" id="includeSemicolon" />
+              <span>Dấu ; đầu/cuối</span>
+            </label>
+            <span id="lineCount" class="muted">0 dòng</span>
+          </div>
+        </div>
+        <pre id="gcodeOutput" class="gcode-pre"></pre>
+      </div>
+    </section>
+  </main>
+
+  <section id="setupSheet" class="setup-sheet"></section>
+  <div id="toast" class="toast" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
