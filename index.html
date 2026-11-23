@@ -96,7 +96,7 @@
           </label>
         </div>
 
-        <div id="thread60Options" class="grid-2 sub-grid" style="display: none; margin-bottom: 10px;">
+        <div id="thread60Options" class="grid-3 sub-grid" style="display: none; margin-bottom: 10px;">
           <label class="field">
             <span>Góc xoắn α (độ)</span>
             <select id="helixAngle">
@@ -110,6 +110,13 @@
             <select id="threadIndexMode">
               <option value="q_angle" selected>Góc pha Q (G32 Q...)</option>
               <option value="z_shift">Dịch Z_start</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Xuất G32</span>
+            <select id="threadCodeMode">
+              <option value="linear" selected>Code thẳng (Mọi máy)</option>
+              <option value="macro">Macro WHILE (Gọn)</option>
             </select>
           </label>
         </div>
@@ -294,10 +301,13 @@
       <div class="card preview-card">
         <div class="card-head">
           <h2>Mô phỏng &amp; Kích thước gia công (2D)</h2>
-          <div class="legend">
-            <span><i class="dot dot-rapid"></i>G00 Nhanh</span>
-            <span><i class="dot dot-feed"></i>G01 Lăn</span>
-            <span><i class="dot dot-knurl"></i>Vùng nhám</span>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="legend">
+              <span><i class="dot dot-rapid"></i>G00 Nhanh</span>
+              <span><i class="dot dot-feed"></i>G01 Lăn</span>
+              <span><i class="dot dot-knurl"></i>Vùng nhám</span>
+            </div>
+            <button type="button" id="btnAnimate" class="btn btn-small">▶ Chạy thử</button>
           </div>
         </div>
         <div class="preview-grid">

@@ -20,6 +20,7 @@
     method: "traverse",
     helixAngle: 45,
     threadIndexMode: "q_angle",
+    threadCodeMode: "linear",
     passMode: "oneway",
     pattern: "diamond",
     pitch: 1.0,
@@ -51,6 +52,8 @@
 
   let optimalD0 = 30.0;
   let lastGCode = "";
+  let animFrameId = null;
+  let animWaypoints = [];
 
   function fmt(num, dec = 3) {
     return Number(num).toFixed(dec).replace(/\.?0+$/, (m) => (m.includes(".") ? "" : m));
@@ -80,6 +83,7 @@
       method: $("method").value,
       helixAngle: parseFloat($("helixAngle").value) || 45,
       threadIndexMode: $("threadIndexMode").value,
+      threadCodeMode: $("threadCodeMode").value,
       passMode: $("passMode").value,
       pattern: $("pattern").value,
       pitch: Math.max(0.1, parseFloat($("pitch").value) || 1.0),
@@ -268,12 +272,53 @@
       }
 
       let prevDepth = 0;
+      const stepZ = t60.lead / t60.starts;
       for (let i = 1; i <= s.passes; i++) {
         const curDepth = s.depthPerSide * Math.sqrt(i / s.passes);
         const ap = curDepth - prevDepth;
         prevDepth = curDepth;
         const xPass = s.dBlank - 2 * curDepth;
         if (s.includeComments) lines.push(`(--- PASS ${i}/${s.passes} X=${fmtCoord(xPass)} AP=${ap.toFixed(3)}MM ---)`);
+
+        if (s.threadCodeMode === "macro") {
+          lines.push(`#101 = 0`);
+          lines.push(`WHILE [#101 LT ${t60.starts}] DO1`);
+          if (s.threadIndexMode === "q_angle") {
+            lines.push(`#102 = ROUND[#101 * 360000 / ${t60.starts}]`);
+            lines.push(`G00 X${fmtCoord(xClear)} Z${fmtCoord(zLeadFwd)}`);
+            lines.push(`G00 X${fmtCoord(xPass)}`);
+            lines.push(`G32 Z${fmtCoord(s.zEnd)} F${leadStr} Q#102`);
+          } else {
+            lines.push(`#102 = ${fmtCoord(zLeadFwd)} - [${zDir} * #101 * ${stepZ.toFixed(4)}]`);
+            lines.push(`G00 X${fmtCoord(xClear)} Z#102`);
+            lines.push(`G00 X${fmtCoord(xPass)}`);
+            lines.push(`G32 Z${fmtCoord(s.zEnd)} F${leadStr}`);
+          }
+          lines.push(`G00 X${fmtCoord(xClear)}`);
+          lines.push(`#101 = #101 + 1`);
+          lines.push(`END1`);
+
+          if (s.pattern === "diamond") {
+            if (s.includeComments) lines.push(`(--- REVERSE HELIX FOR DIAMOND ---)`);
+            lines.push(`#101 = 0`);
+            lines.push(`WHILE [#101 LT ${t60.starts}] DO2`);
+            if (s.threadIndexMode === "q_angle") {
+              lines.push(`#102 = ROUND[#101 * 360000 / ${t60.starts}]`);
+              lines.push(`G00 X${fmtCoord(xClear)} Z${fmtCoord(zLeadRev)}`);
+              lines.push(`G00 X${fmtCoord(xPass)}`);
+              lines.push(`G32 Z${fmtCoord(s.zStart)} F${leadStr} Q#102`);
+            } else {
+              lines.push(`#102 = ${fmtCoord(zLeadRev)} + [${zDir} * #101 * ${stepZ.toFixed(4)}]`);
+              lines.push(`G00 X${fmtCoord(xClear)} Z#102`);
+              lines.push(`G00 X${fmtCoord(xPass)}`);
+              lines.push(`G32 Z${fmtCoord(s.zStart)} F${leadStr}`);
+            }
+            lines.push(`G00 X${fmtCoord(xClear)}`);
+            lines.push(`#101 = #101 + 1`);
+            lines.push(`END2`);
+          }
+          continue;
+        }
 
         for (let k = 0; k < t60.starts; k++) {
           if (s.threadIndexMode === "q_angle") {
@@ -566,7 +611,7 @@
       const tx = zsX;
       const ty = xClearY - 2;
       wheelHtml = `
-        <g>
+        <g id="animTool" transform="translate(0,0)">
           <rect x="${tx - 6}" y="${ty - 34}" width="12" height="20" rx="2" fill="#475569"/>
           <polygon points="${tx - 9},${ty - 14} ${tx + 9},${ty - 14} ${tx},${ty}" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
           <text x="${tx + 14}" y="${ty - 14}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Dao ren 60° (${s.toolCode})</text>
@@ -577,13 +622,38 @@
       const wheelCx = zsX;
       const wheelCy = xClearY - wheelR - 4;
       wheelHtml = `
-        <g>
+        <g id="animTool" transform="translate(0,0)">
           <rect x="${wheelCx - 5}" y="${wheelCy - wheelR - 14}" width="10" height="16" rx="2" fill="#475569"/>
           <circle cx="${wheelCx}" cy="${wheelCy}" r="${wheelR}" fill="#fef3c7" stroke="#d97706" stroke-width="2" stroke-dasharray="3,2"/>
           <circle cx="${wheelCx}" cy="${wheelCy}" r="4.5" fill="#475569"/>
           <text x="${wheelCx + wheelR + 6}" y="${wheelCy + 4}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Bánh lăn (${s.toolCode})</text>
         </g>
       `;
+    }
+
+    const dxApp = zaX - zsX;
+    const dxEnd = zeX - zsX;
+    const dyDepth = xDepthY - xClearY;
+    if (s.method === "plunge") {
+      animWaypoints = [
+        { x: dxApp, y: -12, ms: 400 },
+        { x: 0, y: 0, ms: 500 },
+        { x: 0, y: dyDepth, ms: 700 },
+        { x: 0, y: dyDepth, ms: 450 },
+        { x: 0, y: 0, ms: 350 },
+        { x: dxApp, y: -12, ms: 400 },
+        { x: 0, y: 0, ms: 200 },
+      ];
+    } else {
+      animWaypoints = [
+        { x: dxApp, y: -12, ms: 400 },
+        { x: 0, y: 0, ms: 450 },
+        { x: 0, y: dyDepth, ms: 500 },
+        { x: dxEnd, y: dyDepth, ms: 1300 },
+        { x: dxEnd, y: 0, ms: 350 },
+        { x: dxApp, y: 0, ms: 450 },
+        { x: 0, y: 0, ms: 250 },
+      ];
     }
 
     // Toolpath polyline
@@ -819,6 +889,52 @@
     applyAutoCuttingParams();
     update();
     showToast(`Đã cập nhật D0 = ${optimalD0.toFixed(2)} mm`);
+  });
+
+  function stopAnimation() {
+    if (animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+    const tool = $("animTool");
+    if (tool) tool.setAttribute("transform", "translate(0,0)");
+    $("btnAnimate").textContent = "▶ Chạy thử";
+  }
+
+  $("btnAnimate").addEventListener("click", () => {
+    if (animFrameId) {
+      stopAnimation();
+      return;
+    }
+    const tool = $("animTool");
+    if (!tool || animWaypoints.length < 2) return;
+    $("btnAnimate").textContent = "■ Dừng";
+    let seg = 0;
+    let segStart = performance.now();
+
+    function stepAnim(now) {
+      if (!animFrameId) return;
+      const from = animWaypoints[seg];
+      const to = animWaypoints[seg + 1];
+      if (!to) {
+        stopAnimation();
+        return;
+      }
+      const t = Math.min(1, (now - segStart) / to.ms);
+      const x = from.x + (to.x - from.x) * t;
+      const y = from.y + (to.y - from.y) * t;
+      tool.setAttribute("transform", `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+      if (t >= 1) {
+        seg++;
+        segStart = now;
+        if (seg >= animWaypoints.length - 1) {
+          stopAnimation();
+          return;
+        }
+      }
+      animFrameId = requestAnimationFrame(stepAnim);
+    }
+    animFrameId = requestAnimationFrame(stepAnim);
   });
 
   $("btnCopy").addEventListener("click", async () => {
