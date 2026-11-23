@@ -513,18 +513,42 @@
 
     // Build knurl pattern lines
     let hatch = "";
+    let helixOverlay = "";
     const step = 7;
-    if (s.pattern === "straight") {
+    if (s.pattern === "straight" && s.method !== "thread60") {
       for (let y = topY + 3; y < botY - 2; y += 6) {
         hatch += `<line x1="${knurlLeft}" y1="${y}" x2="${knurlLeft + knurlWidth}" y2="${y}" stroke="#d97706" stroke-width="1" opacity="0.65"/>`;
       }
     } else {
-      for (let x = knurlLeft; x <= knurlLeft + knurlWidth; x += step) {
-        const x2 = Math.min(knurlLeft + knurlWidth, x + 10);
-        hatch += `<line x1="${x}" y1="${topY}" x2="${x2}" y2="${botY}" stroke="#d97706" stroke-width="1" opacity="0.55"/>`;
+      const angleDeg = s.method === "thread60" ? s.helixAngle : 45;
+      const rad = (angleDeg * Math.PI) / 180;
+      const dx = (botY - topY) / Math.tan(rad);
+      const startX = knurlLeft - Math.abs(dx) - step;
+      const endX = knurlLeft + knurlWidth + Math.abs(dx) + step;
+      for (let x = startX; x <= endX; x += step) {
+        hatch += `<line x1="${x}" y1="${botY}" x2="${x + dx}" y2="${topY}" stroke="#d97706" stroke-width="1" opacity="0.58"/>`;
         if (s.pattern === "diamond") {
-          hatch += `<line x1="${x2}" y1="${topY}" x2="${x}" y2="${botY}" stroke="#d97706" stroke-width="1" opacity="0.55"/>`;
+          hatch += `<line x1="${x}" y1="${topY}" x2="${x + dx}" y2="${botY}" stroke="#d97706" stroke-width="1" opacity="0.58"/>`;
         }
+      }
+
+      if (s.method === "thread60" && knurlWidth >= 28) {
+        const ax = knurlLeft + knurlWidth * 0.35;
+        const ay = cy;
+        const rArc = 22;
+        const ex = ax + Math.cos(-rad) * rArc;
+        const ey = ay + Math.sin(-rad) * rArc;
+        const lx = ax + Math.cos(-rad) * 34;
+        const ly = ay + Math.sin(-rad) * 34;
+        helixOverlay = `
+          <g>
+            <line x1="${ax}" y1="${ay}" x2="${ax + 34}" y2="${ay}" stroke="#0f172a" stroke-width="1.2"/>
+            <line x1="${ax}" y1="${ay}" x2="${lx}" y2="${ly}" stroke="#dc2626" stroke-width="1.6"/>
+            <path d="M ${ax + rArc} ${ay} A ${rArc} ${rArc} 0 0 0 ${ex} ${ey}" fill="none" stroke="#0f172a" stroke-width="1.2"/>
+            <rect x="${ax + 24}" y="${ay - 19}" width="44" height="15" rx="3" fill="#ffffff" opacity="0.9"/>
+            <text x="${ax + 27}" y="${ay - 8}" fill="#0f172a" font-size="10.5" font-family="monospace" font-weight="700">α=${angleDeg}°</text>
+          </g>
+        `;
       }
     }
 
@@ -641,6 +665,7 @@
 
       <!-- X_min Callout -->
       <text x="${zeX - 4}" y="${xDepthY + 14}" fill="#b45309" font-size="10.5" font-family="monospace" font-weight="600" text-anchor="end">X_min=${fmtCoord(res.xBottom)}</text>
+      ${helixOverlay}
     `;
   }
 
