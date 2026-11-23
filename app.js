@@ -669,6 +669,74 @@
     `;
   }
 
+  function renderKnurlZoom(s) {
+    const svg = $("knurlZoomSvg");
+    if (!svg) return;
+    const vx = 16, vy = 32, vw = 188, vh = 182;
+    const isThread = s.method === "thread60";
+    const angleDeg = isThread ? s.helixAngle : (s.pattern === "straight" ? 0 : 45);
+    const rad = (angleDeg * Math.PI) / 180;
+    const pxStep = Math.max(16, Math.min(36, Math.round(s.pitch * 22)));
+
+    let patternHtml = "";
+    if (s.pattern === "straight" && !isThread) {
+      for (let y = vy; y < vy + vh + pxStep; y += pxStep) {
+        patternHtml += `
+          <rect x="${vx}" y="${y}" width="${vw}" height="${pxStep * 0.48}" fill="#e2e8f0"/>
+          <rect x="${vx}" y="${y + pxStep * 0.48}" width="${vw}" height="${pxStep * 0.52}" fill="#94a3b8"/>
+          <line x1="${vx}" y1="${y}" x2="${vx + vw}" y2="${y}" stroke="#475569" stroke-width="1.2"/>
+        `;
+      }
+    } else if (s.pattern === "diagonal" || (s.pattern === "straight" && isThread)) {
+      const dx = vh / Math.tan(rad);
+      const stepX = pxStep / Math.sin(rad);
+      for (let x = vx - Math.abs(dx) - stepX; x <= vx + vw + Math.abs(dx) + stepX; x += stepX) {
+        patternHtml += `
+          <polygon points="${x},${vy + vh} ${x + stepX * 0.5},${vy + vh} ${x + dx + stepX * 0.5},${vy} ${x + dx},${vy}" fill="#e2e8f0"/>
+          <polygon points="${x + stepX * 0.5},${vy + vh} ${x + stepX},${vy + vh} ${x + dx + stepX},${vy} ${x + dx + stepX * 0.5},${vy}" fill="#94a3b8"/>
+          <line x1="${x}" y1="${vy + vh}" x2="${x + dx}" y2="${vy}" stroke="#475569" stroke-width="1.2"/>
+        `;
+      }
+    } else {
+      // Diamond 3D-shaded pyramids based on helix angle
+      const cellW = pxStep / Math.sin(rad);
+      const cellH = pxStep / Math.cos(rad);
+      const cols = Math.ceil(vw / cellW) + 2;
+      const rows = Math.ceil(vh / cellH) + 2;
+      for (let r = -1; r < rows; r++) {
+        for (let c = -1; c < cols; c++) {
+          const cx = vx + c * cellW + (r % 2 === 0 ? 0 : cellW * 0.5);
+          const cy = vy + r * (cellH * 0.5);
+          const hw = cellW * 0.5;
+          const hh = cellH * 0.5;
+          // Top-left bright facet, bottom-right shadow facet
+          patternHtml += `
+            <polygon points="${cx},${cy - hh} ${cx + hw},${cy} ${cx},${cy}" fill="#f8fafc" stroke="#64748b" stroke-width="0.6"/>
+            <polygon points="${cx},${cy - hh} ${cx - hw},${cy} ${cx},${cy}" fill="#e2e8f0" stroke="#64748b" stroke-width="0.6"/>
+            <polygon points="${cx - hw},${cy} ${cx},${cy + hh} ${cx},${cy}" fill="#cbd5e1" stroke="#64748b" stroke-width="0.6"/>
+            <polygon points="${cx + hw},${cy} ${cx},${cy + hh} ${cx},${cy}" fill="#94a3b8" stroke="#64748b" stroke-width="0.6"/>
+            <polygon points="${cx},${cy - hh} ${cx + hw},${cy} ${cx},${cy + hh} ${cx - hw},${cy}" fill="none" stroke="#475569" stroke-width="1.1"/>
+          `;
+        }
+      }
+    }
+
+    const patLabel = s.pattern === "diamond" ? "Ca-rô" : (s.pattern === "straight" && !isThread ? "Thẳng" : "Chéo");
+    svg.innerHTML = `
+      <defs>
+        <clipPath id="zoomClip">
+          <rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" rx="8"/>
+        </clipPath>
+      </defs>
+      <text x="110" y="21" fill="#0f172a" font-size="11" font-family="sans-serif" font-weight="700" text-anchor="middle">CHIẾU LƯỚI NHÁM (ZOOM)</text>
+      <rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" rx="8" fill="#cbd5e1" stroke="#64748b" stroke-width="1.4"/>
+      <g clip-path="url(#zoomClip)">${patternHtml}</g>
+      <rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" rx="8" fill="none" stroke="#475569" stroke-width="1.5"/>
+      <text x="110" y="234" fill="#0f172a" font-size="11" font-family="monospace" font-weight="600" text-anchor="middle">${patLabel} · Góc ${angleDeg}°</text>
+      <text x="110" y="251" fill="#475569" font-size="10.5" font-family="monospace" text-anchor="middle">P=${s.pitch}mm · Sâu=${s.depthPerSide}mm</text>
+    `;
+  }
+
   function renderSetupSheet(s, res) {
     const el = $("setupSheet");
     const matName = $("material").options[$("material").selectedIndex]?.text || s.material;
@@ -695,6 +763,7 @@
     $("lineCount").textContent = `${res.lineCount} dòng`;
     updateMetrics(s, res);
     renderSvg(s, res);
+    renderKnurlZoom(s);
     renderSetupSheet(s, res);
   }
 
