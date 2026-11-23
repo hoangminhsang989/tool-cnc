@@ -13,6 +13,7 @@
     controller: "fanuc",
     progNumber: "0105",
     material: "mild_steel",
+    surfaceType: "od",
     wcs: "G54",
     dBlank: 30.0,
     zStart: -1.0,
@@ -77,6 +78,7 @@
       controller: $("controller").value,
       progNumber: ($("progNumber").value || "0105").trim().replace(/^O/i, ""),
       material: $("material").value,
+      surfaceType: $("surfaceType").value,
       wcs: $("wcs").value,
       dBlank: Math.max(1, parseFloat($("dBlank").value) || 30),
       zStart: parseFloat($("zStart").value) || 0,
@@ -204,8 +206,10 @@
     const lines = [];
     const cmt = (txt) => (s.includeComments ? ` (${txt})` : "");
     const feedMode = s.controller === "mach3" ? "G95" : "G99";
-    const xClear = s.dBlank + 2.0;
-    const xBottom = s.dBlank - 2 * s.depthPerSide;
+    const isId = s.surfaceType === "id";
+    const sign = isId ? 1 : -1;
+    const xClear = isId ? Math.max(1.0, s.dBlank - 2.0) : s.dBlank + 2.0;
+    const xBottom = s.dBlank + sign * 2 * s.depthPerSide;
     const dwellCmd = formatDwell(s.controller, s.dwellSec);
     const zLen = Math.abs(s.zEnd - s.zStart);
     const zDir = s.zEnd < s.zStart ? -1 : 1;
@@ -233,13 +237,13 @@
 
     if (s.preTurn) {
       const turnRpm = Math.min(2500, Math.max(400, Math.round(s.spindleRpm * 2.5 / 10) * 10));
-      if (s.includeComments) lines.push(`(--- OP1: PRE-TURN D0 ---)`);
-      lines.push(`${s.preTurnTool}${cmt("OD FINISHING TOOL")}`);
+      if (s.includeComments) lines.push(`(--- OP1: PRE-TURN D0 ${isId ? "ID" : "OD"} ---)`);
+      lines.push(`${s.preTurnTool}${cmt(isId ? "ID BORING BAR" : "OD FINISHING TOOL")}`);
       lines.push(`G97 S${turnRpm} ${s.spindleDir}`);
       if (s.coolant !== "none") lines.push(`${s.coolant}`);
       lines.push(`G00 X${fmtCoord(xClear)} Z${fmtCoord(s.zApproach)}`);
       if (s.preTurnChamfer > 0) {
-        const xChamferStart = Math.max(2, s.dBlank - 2 * s.preTurnChamfer);
+        const xChamferStart = isId ? s.dBlank + 2 * s.preTurnChamfer : Math.max(2, s.dBlank - 2 * s.preTurnChamfer);
         lines.push(`G00 X${fmtCoord(xChamferStart)} Z0.5`);
         lines.push(`G01 Z0.0 F${s.preTurnFeed.toFixed(2)}`);
         lines.push(`G01 X${fmtCoord(s.dBlank)} Z-${s.preTurnChamfer.toFixed(2)}${cmt(`CHAMFER C${s.preTurnChamfer}`)}`);
@@ -250,18 +254,18 @@
       lines.push(`G00 X${fmtCoord(xClear)}`);
       lines.push(`G00 Z${fmtCoord(s.zApproach)}`);
       if (s.coolant !== "none") lines.push("M09");
-      lines.push(s.homeReturn === "G28" ? "G28 U0 W0" : `G00 X${fmtCoord(Math.max(s.xSafe, xClear))} Z${fmtCoord(s.zApproach)}`);
+      lines.push(s.homeReturn === "G28" ? "G28 U0 W0" : `G00 X${fmtCoord(isId ? Math.min(s.xSafe, xClear) : Math.max(s.xSafe, xClear))} Z${fmtCoord(s.zApproach)}`);
       lines.push(`M01${cmt("OPTIONAL STOP - CHECK D0")}`);
       lines.push("");
     }
 
-    lines.push(`${s.toolCode}${cmt("KNURLING TOOL")}`);
+    lines.push(`${s.toolCode}${cmt(isId ? "ID KNURLING TOOL" : "KNURLING TOOL")}`);
     lines.push(`G97 S${s.spindleRpm} ${s.spindleDir}${cmt("CONSTANT RPM - DO NOT USE G96")}`);
     if (s.coolant !== "none") {
       lines.push(`${s.coolant}${cmt("COOLANT ON")}`);
     }
 
-    lines.push(`G00 X${fmtCoord(Math.max(s.xSafe, xClear))} Z${fmtCoord(s.zApproach)}${cmt("SAFE APPROACH")}`);
+    lines.push(`G00 X${fmtCoord(isId ? xClear : Math.max(s.xSafe, xClear))} Z${fmtCoord(s.zApproach)}${cmt("SAFE APPROACH")}`);
 
     if (s.method === "thread60") {
       const t60 = calcThread60(s);
@@ -281,7 +285,7 @@
         const curDepth = isSpring ? s.depthPerSide : s.depthPerSide * Math.sqrt(i / s.passes);
         const ap = isSpring ? 0 : curDepth - prevDepth;
         prevDepth = curDepth;
-        const xPass = s.dBlank - 2 * curDepth;
+        const xPass = s.dBlank + sign * 2 * curDepth;
         if (s.includeComments) {
           lines.push(isSpring
             ? `(--- SPRING PASS X=${fmtCoord(xPass)} AP=0.000MM ---)`
@@ -369,7 +373,7 @@
 
       for (let i = 1; i <= s.passes; i++) {
         const frac = i / s.passes;
-        const xPass = s.dBlank - 2 * s.depthPerSide * frac;
+        const xPass = s.dBlank + sign * 2 * s.depthPerSide * frac;
         lines.push(`G01 X${fmtCoord(xPass)} F${s.feedX.toFixed(2)}${cmt(`PLUNGE PASS ${i}/${s.passes}`)}`);
         if (dwellCmd && i === s.passes) {
           lines.push(`${dwellCmd}${cmt(`DWELL ${s.dwellSec}S`)}`);
@@ -380,7 +384,7 @@
       lines.push(`G00 X${fmtCoord(xClear)} Z${fmtCoord(s.zStart)}${cmt("START POSITION ZIGZAG")}`);
       for (let i = 1; i <= s.passes; i++) {
         const frac = i / s.passes;
-        const xPass = s.dBlank - 2 * s.depthPerSide * frac;
+        const xPass = s.dBlank + sign * 2 * s.depthPerSide * frac;
         const goingEnd = i % 2 === 1;
         const targetZ = goingEnd ? s.zEnd : s.zStart;
         if (s.includeComments) lines.push(`(--- ZIGZAG PASS ${i}/${s.passes} ---)`);
@@ -388,7 +392,7 @@
         if (dwellCmd) lines.push(`${dwellCmd}${cmt("ENGAGE KNURL")}`);
         lines.push(`G01 Z${fmtCoord(targetZ)} F${s.feedZ.toFixed(2)}${cmt(goingEnd ? "TRAVERSE FORWARD" : "TRAVERSE RETURN")}`);
         if (i === s.passes && s.chamferExit) {
-          const xExit = s.dBlank + 1.0;
+          const xExit = isId ? Math.max(1.0, s.dBlank - 1.0) : s.dBlank + 1.0;
           const zExit = targetZ + (goingEnd ? zDir : -zDir) * 1.0;
           lines.push(`G01 X${fmtCoord(xExit)} Z${fmtCoord(zExit)} F${s.feedZ.toFixed(2)}${cmt("45 DEG EXIT")}`);
         } else if (dwellCmd && i === s.passes) {
@@ -401,7 +405,7 @@
 
       for (let i = 1; i <= s.passes; i++) {
         const frac = i / s.passes;
-        const xPass = s.dBlank - 2 * s.depthPerSide * frac;
+        const xPass = s.dBlank + sign * 2 * s.depthPerSide * frac;
         if (s.includeComments) lines.push(`(--- PASS ${i}/${s.passes} ---)`);
         lines.push(`G01 X${fmtCoord(xPass)} F${s.feedX.toFixed(2)}${cmt("PLUNGE TO DEPTH")}`);
         if (dwellCmd) {
@@ -409,7 +413,7 @@
         }
         lines.push(`G01 Z${fmtCoord(s.zEnd)} F${s.feedZ.toFixed(2)}${cmt("TRAVERSE KNURL")}`);
         if (s.chamferExit) {
-          const xExit = s.dBlank + 1.0;
+          const xExit = isId ? Math.max(1.0, s.dBlank - 1.0) : s.dBlank + 1.0;
           const zExit = s.zEnd + zDir * 1.0;
           lines.push(`G01 X${fmtCoord(xExit)} Z${fmtCoord(zExit)} F${s.feedZ.toFixed(2)}${cmt("45 DEG EXIT")}`);
         } else if (dwellCmd) {
@@ -446,8 +450,9 @@
     if (s.method === "thread60") {
       const t60 = calcThread60(s);
       const dirs = s.pattern === "diamond" ? 2 : 1;
+      const totalPasses = s.passes + (s.springPass ? 1 : 0);
       const passSec = (zLen + 4) / (t60.lead * revPerSec) + 0.8;
-      cutSec = s.passes * dirs * t60.starts * passSec + 3.0;
+      cutSec = totalPasses * dirs * t60.starts * passSec + 3.0;
     } else if (s.method === "plunge") {
       cutSec = (s.depthPerSide / (s.feedX * revPerSec)) + s.dwellSec + 2.0;
     } else {
@@ -466,7 +471,10 @@
 
   function updateMetrics(s, res) {
     $("mXBottom").textContent = `${res.xBottom.toFixed(2)} mm`;
-    const dFinal = s.method === "thread60" ? s.dBlank : s.dBlank + 0.4 * s.pitch;
+    const isId = s.surfaceType === "id";
+    const dFinal = s.method === "thread60"
+      ? s.dBlank
+      : (isId ? s.dBlank - 0.4 * s.pitch : s.dBlank + 0.4 * s.pitch);
     $("mDFinal").textContent = `${dFinal.toFixed(2)} mm`;
 
     const vc = (Math.PI * s.dBlank * s.spindleRpm) / 1000;
@@ -566,10 +574,11 @@
     const stockLeft = Math.min(knurlLeft - 38, 72);
     const stockWidth = Math.max(24, z0X - stockLeft);
 
+    const isId = s.surfaceType === "id";
     const topY = cy - halfD;
     const botY = cy + halfD;
-    const xClearY = topY - 16;
-    const xDepthY = topY + 7;
+    const xClearY = isId ? cy - 2 : topY - 16;
+    const xDepthY = isId ? topY - 6 : topY + 7;
     const knurlLen = Math.abs(s.zEnd - s.zStart);
 
     // Build knurl pattern lines
@@ -613,28 +622,40 @@
       }
     }
 
-    // Tool icon above Z_start (Knurling wheel OR 60-deg threading insert)
+    // Tool icon (Knurling wheel OR 60-deg threading insert)
     let wheelHtml = "";
+    const toolLabel = isId ? " (ID)" : "";
     if (s.method === "thread60") {
       const tx = zsX;
-      const ty = xClearY - 2;
-      wheelHtml = `
-        <g id="animTool" transform="translate(0,0)">
-          <rect x="${tx - 6}" y="${ty - 34}" width="12" height="20" rx="2" fill="#475569"/>
-          <polygon points="${tx - 9},${ty - 14} ${tx + 9},${ty - 14} ${tx},${ty}" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
-          <text x="${tx + 14}" y="${ty - 14}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Dao ren 60° (${s.toolCode})</text>
-        </g>
-      `;
+      const ty = isId ? xClearY + 2 : xClearY - 2;
+      if (isId) {
+        wheelHtml = `
+          <g id="animTool" transform="translate(0,0)">
+            <rect x="${tx - 6}" y="${ty + 14}" width="12" height="20" rx="2" fill="#475569"/>
+            <polygon points="${tx - 9},${ty + 14} ${tx + 9},${ty + 14} ${tx},${ty}" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+            <text x="${tx + 14}" y="${ty + 18}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Dao ren 60°${toolLabel} (${s.toolCode})</text>
+          </g>
+        `;
+      } else {
+        wheelHtml = `
+          <g id="animTool" transform="translate(0,0)">
+            <rect x="${tx - 6}" y="${ty - 34}" width="12" height="20" rx="2" fill="#475569"/>
+            <polygon points="${tx - 9},${ty - 14} ${tx + 9},${ty - 14} ${tx},${ty}" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+            <text x="${tx + 14}" y="${ty - 14}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Dao ren 60° (${s.toolCode})</text>
+          </g>
+        `;
+      }
     } else {
-      const wheelR = 16;
+      const wheelR = isId ? 12 : 16;
       const wheelCx = zsX;
-      const wheelCy = xClearY - wheelR - 4;
+      const wheelCy = isId ? xClearY + wheelR + 2 : xClearY - wheelR - 4;
+      const stemY = isId ? wheelCy + wheelR - 2 : wheelCy - wheelR - 14;
       wheelHtml = `
         <g id="animTool" transform="translate(0,0)">
-          <rect x="${wheelCx - 5}" y="${wheelCy - wheelR - 14}" width="10" height="16" rx="2" fill="#475569"/>
+          <rect x="${wheelCx - 5}" y="${stemY}" width="10" height="16" rx="2" fill="#475569"/>
           <circle cx="${wheelCx}" cy="${wheelCy}" r="${wheelR}" fill="#fef3c7" stroke="#d97706" stroke-width="2" stroke-dasharray="3,2"/>
-          <circle cx="${wheelCx}" cy="${wheelCy}" r="4.5" fill="#475569"/>
-          <text x="${wheelCx + wheelR + 6}" y="${wheelCy + 4}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Bánh lăn (${s.toolCode})</text>
+          <circle cx="${wheelCx}" cy="${wheelCy}" r="4" fill="#475569"/>
+          <text x="${wheelCx + wheelR + 6}" y="${wheelCy + 4}" fill="#b45309" font-size="11" font-family="sans-serif" font-weight="600">Bánh lăn${toolLabel} (${s.toolCode})</text>
         </g>
       `;
     }
@@ -642,19 +663,20 @@
     const dxApp = zaX - zsX;
     const dxEnd = zeX - zsX;
     const dyDepth = xDepthY - xClearY;
+    const appOffset = isId ? 0 : -12;
     if (s.method === "plunge") {
       animWaypoints = [
-        { x: dxApp, y: -12, ms: 400 },
+        { x: dxApp, y: appOffset, ms: 400 },
         { x: 0, y: 0, ms: 500 },
         { x: 0, y: dyDepth, ms: 700 },
         { x: 0, y: dyDepth, ms: 450 },
         { x: 0, y: 0, ms: 350 },
-        { x: dxApp, y: -12, ms: 400 },
+        { x: dxApp, y: appOffset, ms: 400 },
         { x: 0, y: 0, ms: 200 },
       ];
     } else {
       animWaypoints = [
-        { x: dxApp, y: -12, ms: 400 },
+        { x: dxApp, y: appOffset, ms: 400 },
         { x: 0, y: 0, ms: 450 },
         { x: 0, y: dyDepth, ms: 500 },
         { x: dxEnd, y: dyDepth, ms: 1300 },
@@ -666,30 +688,32 @@
 
     // Toolpath polyline
     let pathHtml = "";
+    const appY = isId ? xClearY : xClearY - 12;
+    const lblY = isId ? xDepthY + 13 : xDepthY - 5;
     if (s.method === "thread60") {
       const t60 = calcThread60(s);
       pathHtml = `
-        <line x1="${zaX}" y1="${xClearY - 12}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
+        <line x1="${zaX}" y1="${appY}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
         <line x1="${zsX}" y1="${xClearY}" x2="${zsX}" y2="${xDepthY}" stroke="#dc2626" stroke-width="2.0"/>
         <line x1="${zsX}" y1="${xDepthY}" x2="${zeX}" y2="${xDepthY}" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrowRed)"/>
         <line x1="${zeX}" y1="${xDepthY}" x2="${zeX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
-        <text x="${(zsX + zeX) / 2}" y="${xDepthY - 5}" fill="#dc2626" font-size="10.5" font-family="monospace" text-anchor="middle">G32 F=${t60.lead.toFixed(1)} (${t60.starts} mối)</text>
+        <text x="${(zsX + zeX) / 2}" y="${lblY}" fill="#dc2626" font-size="10.5" font-family="monospace" text-anchor="middle">G32 F=${t60.lead.toFixed(1)} (${t60.starts} mối)</text>
       `;
     } else if (s.method === "plunge") {
       pathHtml = `
-        <line x1="${zaX}" y1="${xClearY - 12}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
+        <line x1="${zaX}" y1="${appY}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
         <line x1="${zsX}" y1="${xClearY}" x2="${zsX}" y2="${xDepthY}" stroke="#dc2626" stroke-width="2.4" marker-end="url(#arrowRed)"/>
         <line x1="${zsX}" y1="${xDepthY}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.5" stroke-dasharray="5,4"/>
-        <text x="${zsX - 8}" y="${xDepthY - 3}" fill="#dc2626" font-size="10.5" font-family="monospace" text-anchor="end">Fx=${s.feedX}</text>
+        <text x="${zsX - 8}" y="${lblY}" fill="#dc2626" font-size="10.5" font-family="monospace" text-anchor="end">Fx=${s.feedX}</text>
       `;
     } else {
       pathHtml = `
-        <line x1="${zaX}" y1="${xClearY - 12}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
+        <line x1="${zaX}" y1="${appY}" x2="${zsX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
         <line x1="${zsX}" y1="${xClearY}" x2="${zsX}" y2="${xDepthY}" stroke="#dc2626" stroke-width="2.0"/>
         <line x1="${zsX}" y1="${xDepthY}" x2="${zeX}" y2="${xDepthY}" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrowRed)"/>
         <line x1="${zeX}" y1="${xDepthY}" x2="${zeX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.6" stroke-dasharray="5,4"/>
         <line x1="${zeX}" y1="${xClearY}" x2="${zaX}" y2="${xClearY}" stroke="#0284c7" stroke-width="1.4" stroke-dasharray="5,4"/>
-        <text x="${(zsX + zeX) / 2}" y="${xDepthY - 5}" fill="#dc2626" font-size="10.5" font-family="monospace" text-anchor="middle">Fz=${s.feedZ} (${s.passes} pass)</text>
+        <text x="${(zsX + zeX) / 2}" y="${lblY}" fill="#dc2626" font-size="10.5" font-family="monospace" text-anchor="middle">Fz=${s.feedZ} (${s.passes} pass)</text>
       `;
     }
 
@@ -717,7 +741,12 @@
       <text x="${stockLeft - 24}" y="${cy + 3}" fill="#475569" font-size="10" font-family="sans-serif" text-anchor="end">Mâm cặp</text>
 
       <!-- Stock -->
-      <rect x="${stockLeft}" y="${topY}" width="${stockWidth}" height="${halfD * 2}" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+      ${isId
+        ? `<rect x="${stockLeft}" y="${topY - 16}" width="${stockWidth}" height="16" fill="#cbd5e1" stroke="#475569" stroke-width="1.4"/>
+           <rect x="${stockLeft}" y="${botY}" width="${stockWidth}" height="16" fill="#cbd5e1" stroke="#475569" stroke-width="1.4"/>
+           <rect x="${stockLeft}" y="${topY}" width="${stockWidth}" height="${halfD * 2}" fill="#f1f5f9" stroke="#64748b" stroke-width="1"/>`
+        : `<rect x="${stockLeft}" y="${topY}" width="${stockWidth}" height="${halfD * 2}" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>`
+      }
 
       <!-- Knurl Zone -->
       <rect x="${knurlLeft}" y="${topY}" width="${knurlWidth}" height="${halfD * 2}" fill="rgba(217,119,6,0.14)" stroke="#d97706" stroke-width="1.4"/>
