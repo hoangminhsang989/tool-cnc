@@ -12,6 +12,32 @@
     hardened:   { name: "Thép sau nhiệt (45-55HRC)", kc: 3200, vcTurn: 65, vcMill: 55, vcDrill: 16, fTurn: 0.10, fzMill: 0.03, fDrill: 0.06 },
   };
 
+  const CALC_KEY = "cnc_calc_last_v1";
+  const TAB_KEY = "cnc_active_tab_v1";
+  const CALC_IDS = ["cOp", "cMat", "cToolMat", "cCutType", "cDia", "cVc", "cRpm", "cFz", "cVf", "cFlutes", "cNoseR", "cAp", "cAe", "cCutLen"];
+
+  function saveCalcState() {
+    try {
+      const data = {};
+      CALC_IDS.forEach((id) => { if ($(id)) data[id] = $(id).value; });
+      localStorage.setItem(CALC_KEY, JSON.stringify(data));
+    } catch {}
+  }
+
+  function loadCalcState() {
+    try {
+      const raw = localStorage.getItem(CALC_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      CALC_IDS.forEach((id) => {
+        if ($(id) && data[id] !== undefined) $(id).value = data[id];
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   let lockSync = false;
 
   const CHIP_FACTORS = {
@@ -124,13 +150,20 @@
     $("cResMrr").textContent = `${mrr.toFixed(1)} cm³/ph`;
     $("cResPower").textContent = `${powerKw.toFixed(2)} kW`;
 
+    const cutLen = Math.max(1, parseFloat($("cCutLen")?.value) || 50);
+    const cutSec = Math.max(0.5, (cutLen / Math.max(1, vf)) * 60);
+    const timeTxt = cutSec >= 60
+      ? `${Math.floor(cutSec / 60)}p ${Math.round(cutSec % 60)}s`
+      : `${cutSec.toFixed(1)}s`;
+
     if (raUm !== null) {
-      $("cResExtra").textContent = `Độ bóng lý thuyết Ra ≈ ${raUm.toFixed(2)} µm (với R mũi = ${noseR} mm) · Lực cắt riêng kc = ${mat.kc} N/mm²`;
+      $("cResExtra").textContent = `Thời gian cắt (L=${cutLen}mm): ${timeTxt} · Độ bóng Ra ≈ ${raUm.toFixed(2)} µm (R=${noseR}) · kc=${mat.kc} N/mm²`;
     } else if (op === "milling") {
-      $("cResExtra").textContent = `Bước tiến/vòng f = ${(fOrFz * flutes).toFixed(3)} mm/vòng (${flutes} me) · Lực cắt riêng kc = ${mat.kc} N/mm²`;
+      $("cResExtra").textContent = `Thời gian cắt (L=${cutLen}mm): ${timeTxt} · f=${(fOrFz * flutes).toFixed(3)} mm/v (${flutes} me) · kc=${mat.kc} N/mm²`;
     } else {
-      $("cResExtra").textContent = `Khoan Ø${d} mm: Vf = ${Math.round(vf)} mm/ph · Nếu taro bước P=${fOrFz} mm thì Vf = ${Math.round(rpm * fOrFz)} mm/ph`;
+      $("cResExtra").textContent = `Thời gian khoan (L=${cutLen}mm): ${timeTxt} · Nếu taro bước P=${fOrFz}mm → Vf=${Math.round(rpm * fOrFz)} mm/ph`;
     }
+    saveCalcState();
 
     const warns = [];
     const toolMat = $("cToolMat").value;
@@ -236,7 +269,7 @@
       updateCalc();
     });
 
-    ["cFlutes", "cAp", "cAe", "cNoseR"].forEach((id) => {
+    ["cFlutes", "cAp", "cAe", "cNoseR", "cCutLen"].forEach((id) => {
       $(id).addEventListener("input", updateCalc);
       $(id).addEventListener("change", updateCalc);
     });
@@ -251,12 +284,18 @@
       $("knurlView").style.display = isCalc ? "none" : "grid";
       $("calcView").style.display = isCalc ? "grid" : "none";
       $("knurlTopActions").style.display = isCalc ? "none" : "flex";
+      try { localStorage.setItem(TAB_KEY, tab); } catch {}
     };
 
     $("tabKnurl").addEventListener("click", () => switchTab("knurl"));
     $("tabCalc").addEventListener("click", () => switchTab("calc"));
 
-    applyCalcPreset();
+    if (loadCalcState()) updateCalc();
+    else applyCalcPreset();
+
+    try {
+      if (localStorage.getItem(TAB_KEY) === "calc") switchTab("calc");
+    } catch {}
   }
 
   bindCalcEvents();
