@@ -180,6 +180,9 @@
     if (op === "turning" && fOrFz > noseR * 0.7) {
       warns.push(`Bước tiến f (${fOrFz}) lớn hơn 0.7 × R mũi dao (${noseR}) — bề mặt dễ bị sọc thô (Ra cao).`);
     }
+    if (rpm > 4000) {
+      warns.push(`Số vòng quay S = ${Math.round(rpm)} RPM khá cao — kiểm tra giới hạn RPM tối đa của trục chính (nhiều máy tiện chỉ đạt 3000–4000 RPM).`);
+    }
 
     const cw = $("cWarningsBox");
     if (cw) {
