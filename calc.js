@@ -332,11 +332,13 @@
       const cutLen = Math.max(1, parseFloat($("cCutLen")?.value) || 50);
       let snippet = "";
       if (op === "milling") {
-        snippet = `S${rpm} M03 F${vf}.`;
+        snippet = `G94 S${rpm} M03\nG01 F${vf}.`;
       } else if (op === "tapping") {
-        snippet = `G97 S${rpm} M03\nG84 Z-${cutLen}. F${fz}`;
+        snippet = `M29 S${rpm}\nG99 G84 Z-${cutLen}. R3. F${fz}`;
+      } else if (op === "drilling") {
+        snippet = `G99 G97 S${rpm} M03\nG83 Z-${cutLen}. Q3000 R2. F${fz.toFixed(3)}`;
       } else {
-        snippet = `G97 S${rpm} M03\nG01 F${fz.toFixed(op === "drilling" ? 3 : 2)}`;
+        snippet = `G99 G97 S${rpm} M03\nG01 F${fz.toFixed(2)}`;
       }
       try {
         await navigator.clipboard.writeText(snippet);

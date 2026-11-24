@@ -731,27 +731,38 @@
     const dxEnd = zeX - zsX;
     const dyDepth = xDepthY - xClearY;
     const appOffset = isId ? 0 : -12;
+    const visPasses = Math.min(3, s.passes);
+    animWaypoints = [
+      { x: dxApp, y: appOffset, ms: 350 },
+      { x: 0, y: 0, ms: 400 },
+    ];
     if (s.method === "plunge") {
-      animWaypoints = [
-        { x: dxApp, y: appOffset, ms: 400 },
-        { x: 0, y: 0, ms: 500 },
-        { x: 0, y: dyDepth, ms: 700 },
-        { x: 0, y: dyDepth, ms: 450 },
-        { x: 0, y: 0, ms: 350 },
-        { x: dxApp, y: appOffset, ms: 400 },
-        { x: 0, y: 0, ms: 200 },
-      ];
+      for (let i = 1; i <= visPasses; i++) {
+        const yP = dyDepth * (i / visPasses);
+        animWaypoints.push({ x: 0, y: yP, ms: 500 });
+        animWaypoints.push({ x: 0, y: yP, ms: 300 });
+      }
+      animWaypoints.push({ x: 0, y: 0, ms: 300 });
+    } else if (s.passMode === "zigzag" && s.method === "traverse") {
+      for (let i = 1; i <= visPasses; i++) {
+        const yP = dyDepth * (i / visPasses);
+        const goEnd = i % 2 === 1;
+        animWaypoints.push({ x: goEnd ? 0 : dxEnd, y: yP, ms: 380 });
+        animWaypoints.push({ x: goEnd ? dxEnd : 0, y: yP, ms: 950 });
+      }
+      const lastEnd = visPasses % 2 === 1 ? dxEnd : 0;
+      animWaypoints.push({ x: lastEnd, y: 0, ms: 300 });
     } else {
-      animWaypoints = [
-        { x: dxApp, y: appOffset, ms: 400 },
-        { x: 0, y: 0, ms: 450 },
-        { x: 0, y: dyDepth, ms: 500 },
-        { x: dxEnd, y: dyDepth, ms: 1300 },
-        { x: dxEnd, y: 0, ms: 350 },
-        { x: dxApp, y: 0, ms: 450 },
-        { x: 0, y: 0, ms: 250 },
-      ];
+      for (let i = 1; i <= visPasses; i++) {
+        const yP = dyDepth * (i / visPasses);
+        animWaypoints.push({ x: 0, y: yP, ms: 380 });
+        animWaypoints.push({ x: dxEnd, y: yP, ms: 950 });
+        animWaypoints.push({ x: dxEnd, y: 0, ms: 280 });
+        if (i < visPasses) animWaypoints.push({ x: 0, y: 0, ms: 350 });
+      }
     }
+    animWaypoints.push({ x: dxApp, y: 0, ms: 380 });
+    animWaypoints.push({ x: 0, y: 0, ms: 200 });
 
     // Toolpath polyline
     let pathHtml = "";
