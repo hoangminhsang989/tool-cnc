@@ -3,13 +3,13 @@
 
   // Material database: kc (N/mm2 specific cutting force), vcBase (m/min for Carbide rough/finish)
   const MAT_DB = {
-    alu:        { name: "Nhôm (Al 6061)",      kc: 750,  vcTurn: 220, vcMill: 200, vcDrill: 90,  vcTap: 18, fTurn: 0.22, fzMill: 0.08, fDrill: 0.16 },
-    brass:      { name: "Đồng thau (Brass)",   kc: 850,  vcTurn: 180, vcMill: 160, vcDrill: 75,  vcTap: 15, fTurn: 0.20, fzMill: 0.07, fDrill: 0.15 },
-    cast_iron:  { name: "Gang xám (FC250)",    kc: 1300, vcTurn: 140, vcMill: 120, vcDrill: 45,  vcTap: 10, fTurn: 0.25, fzMill: 0.08, fDrill: 0.18 },
-    mild_steel: { name: "Thép mềm (SS400)",    kc: 1800, vcTurn: 160, vcMill: 130, vcDrill: 55,  vcTap: 12, fTurn: 0.22, fzMill: 0.06, fDrill: 0.15 },
-    c45:        { name: "Thép C45 / 40X",      kc: 2100, vcTurn: 130, vcMill: 105, vcDrill: 42,  vcTap: 10, fTurn: 0.18, fzMill: 0.05, fDrill: 0.12 },
-    inox:       { name: "Inox 304",            kc: 2450, vcTurn: 95,  vcMill: 75,  vcDrill: 26,  vcTap: 6,  fTurn: 0.15, fzMill: 0.04, fDrill: 0.10 },
-    hardened:   { name: "Thép sau nhiệt (45-55HRC)", kc: 3200, vcTurn: 65, vcMill: 55, vcDrill: 16, vcTap: 4, fTurn: 0.10, fzMill: 0.03, fDrill: 0.06 },
+    alu:        { name: "Nhôm (Al 6061)",      kc: 750,  vcTurn: 220, vcThread: 120, vcMill: 200, vcDrill: 90,  vcTap: 18, fTurn: 0.22, fzMill: 0.08, fDrill: 0.16 },
+    brass:      { name: "Đồng thau (Brass)",   kc: 850,  vcTurn: 180, vcThread: 100, vcMill: 160, vcDrill: 75,  vcTap: 15, fTurn: 0.20, fzMill: 0.07, fDrill: 0.15 },
+    cast_iron:  { name: "Gang xám (FC250)",    kc: 1300, vcTurn: 140, vcThread: 75,  vcMill: 120, vcDrill: 45,  vcTap: 10, fTurn: 0.25, fzMill: 0.08, fDrill: 0.18 },
+    mild_steel: { name: "Thép mềm (SS400)",    kc: 1800, vcTurn: 160, vcThread: 95,  vcMill: 130, vcDrill: 55,  vcTap: 12, fTurn: 0.22, fzMill: 0.06, fDrill: 0.15 },
+    c45:        { name: "Thép C45 / 40X",      kc: 2100, vcTurn: 130, vcThread: 75,  vcMill: 105, vcDrill: 42,  vcTap: 10, fTurn: 0.18, fzMill: 0.05, fDrill: 0.12 },
+    inox:       { name: "Inox 304",            kc: 2450, vcTurn: 95,  vcThread: 55,  vcMill: 75,  vcDrill: 26,  vcTap: 6,  fTurn: 0.15, fzMill: 0.04, fDrill: 0.10 },
+    hardened:   { name: "Thép sau nhiệt (45-55HRC)", kc: 3200, vcTurn: 65, vcThread: 35, vcMill: 55, vcDrill: 16, vcTap: 4, fTurn: 0.10, fzMill: 0.03, fDrill: 0.06 },
   };
 
   const CALC_KEY = "cnc_calc_last_v1";
@@ -82,6 +82,22 @@
       return;
     }
 
+    if (op === "threading") {
+      const d = Math.max(2, parseFloat($("cDia").value) || 20);
+      const p = keepPitch ? Math.max(0.2, parseFloat($("cFz").value) || guessMetricPitch(d)) : guessMetricPitch(d);
+      const chip = CHIP_FACTORS[toolMat] || CHIP_FACTORS.carbide;
+      const maxSafeRpm = Math.floor(2200 / p);
+      const targetRpm = Math.round((mat.vcThread * chip.vc * 1000) / (Math.PI * d));
+      const rpm = Math.max(80, Math.min(maxSafeRpm, targetRpm));
+      const vc = ((Math.PI * d * rpm) / 1000).toFixed(1);
+      $("cVc").value = vc;
+      $("cRpm").value = rpm;
+      $("cFz").value = p;
+      $("cVf").value = Math.round(rpm * p);
+      updateCalc();
+      return;
+    }
+
     const chip = CHIP_FACTORS[toolMat] || CHIP_FACTORS.carbide;
     let vcFactor = chip.vc;
     // CBN is for hardened steel / cast iron; PCD is for non-ferrous (alu / brass)
@@ -132,11 +148,11 @@
     const op = $("cOp").value;
     $("cFlutesWrap").style.display = op === "milling" ? "flex" : "none";
     $("cAeWrap").style.display = op === "milling" ? "flex" : "none";
-    $("cApWrap").style.display = (op === "drilling" || op === "tapping") ? "none" : "flex";
+    $("cApWrap").style.display = (op === "drilling" || op === "tapping" || op === "threading") ? "none" : "flex";
     $("cNoseWrap").style.display = op === "turning" ? "flex" : "none";
 
-    $("cDiaLabel").textContent = op === "turning" ? "ĐK phôi D (mm)" : (op === "tapping" ? "ĐK ren M (mm)" : "ĐK dao / mũi D (mm)");
-    $("cFeedLabel").textContent = op === "milling" ? "Bước tiến/răng fz (mm)" : (op === "tapping" ? "Bước ren P (mm/vòng)" : "Bước tiến f (mm/vòng)");
+    $("cDiaLabel").textContent = op === "turning" ? "ĐK phôi D (mm)" : ((op === "tapping" || op === "threading") ? "ĐK ren M (mm)" : "ĐK dao / mũi D (mm)");
+    $("cFeedLabel").textContent = op === "milling" ? "Bước tiến/răng fz (mm)" : ((op === "tapping" || op === "threading") ? "Bước ren P (mm/vòng)" : "Bước tiến f (mm/vòng)");
   }
 
   function updateCalc() {
@@ -157,16 +173,16 @@
     if (op === "milling") {
       vf = rpm * fOrFz * flutes;
       mrr = (ap * ae * vf) / 1000;
-    } else if (op === "drilling" || op === "tapping") {
+    } else if (op === "drilling" || op === "tapping" || op === "threading") {
       vf = rpm * fOrFz;
-      mrr = op === "tapping" ? 0 : (Math.PI * (d * d) / 4) * vf / 1000;
+      mrr = (op === "tapping" || op === "threading") ? 0 : (Math.PI * (d * d) / 4) * vf / 1000;
     } else {
       vf = rpm * fOrFz;
       mrr = vc * ap * fOrFz; // cm3/min = (m/min * mm * mm) = cm3/min
     }
 
     // Power Pc (kW) = (MRR * kc) / (60 * 1000 * eta) with eta=0.8
-    const powerKw = op === "tapping" ? (rpm * fOrFz * d * 0.002) : (mrr * mat.kc) / (60 * 1000 * 0.8);
+    const powerKw = (op === "tapping" || op === "threading") ? (rpm * fOrFz * d * 0.002) : (mrr * mat.kc) / (60 * 1000 * 0.8);
 
     // Theoretical surface roughness Ra (um) for turning: Ra ≈ (f^2 / (32 * r)) * 1000
     const raUm = op === "turning" ? ((fOrFz * fOrFz) / (32 * noseR)) * 1000 : null;
@@ -186,6 +202,11 @@
       $("cResExtra").textContent = `Thời gian cắt (L=${cutLen}mm): ${timeTxt} · Độ bóng Ra ≈ ${raUm.toFixed(2)} µm (R=${noseR}) · kc=${mat.kc} N/mm²`;
     } else if (op === "milling") {
       $("cResExtra").textContent = `Thời gian cắt (L=${cutLen}mm): ${timeTxt} · f=${(fOrFz * flutes).toFixed(3)} mm/v (${flutes} me) · kc=${mat.kc} N/mm²`;
+    } else if (op === "threading") {
+      const hThread = 0.6134 * fOrFz;
+      const xCore = Math.max(0.5, d - 2 * hThread).toFixed(2);
+      const tPasses = Math.max(4, Math.min(14, Math.ceil(hThread / 0.10)));
+      $("cResExtra").textContent = `Tiện ren ngoài M${d}×${fOrFz}: Chiều cao H=${hThread.toFixed(3)} mm · Chân ren X_min=${xCore} mm · Chia ~${tPasses} lát (G76)`;
     } else if (op === "tapping") {
       const drillD = Math.max(0.5, d - fOrFz).toFixed(2);
       $("cResExtra").textContent = `Taro M${d}×${fOrFz}: Khoan lỗ trước Ø${drillD} mm · Thời gian vào/ra (L=${cutLen}mm): ≈${(cutSec * 2).toFixed(1)}s · Chu trình G84 Z-${cutLen}. F${fOrFz}`;
@@ -214,6 +235,10 @@
     }
     if (op === "tapping" && rpm > 800) {
       warns.push(`Taro ren S = ${Math.round(rpm)} RPM hơi cao — dễ gãy mũi taro nếu máy đồng bộ chậm; khuyến nghị S ≤ 600–800 RPM.`);
+    }
+    if (op === "threading" && vf > 2500) {
+      const recS = Math.floor(2200 / fOrFz);
+      warns.push(`Tốc độ chạy bàn Z khi tiện ren (S × P = ${Math.round(vf)} mm/ph) quá cao, dễ lệch bước ren hoặc báo lỗi servo! Nên giảm S ≤ ${recS} RPM.`);
     }
 
     const cw = $("cWarningsBox");
@@ -333,6 +358,14 @@
       let snippet = "";
       if (op === "milling") {
         snippet = `G94 S${rpm} M03\nG01 F${vf}.`;
+      } else if (op === "threading") {
+        const d = Math.max(2, parseFloat($("cDia").value) || 20);
+        const hThread = 0.6134 * fz;
+        const xCore = Math.max(0.5, d - 2 * hThread).toFixed(2);
+        const tPasses = Math.max(4, Math.min(14, Math.ceil(hThread / 0.10)));
+        const pUm = Math.round(hThread * 1000);
+        const qUm = Math.round((hThread / Math.sqrt(tPasses)) * 1000);
+        snippet = `G99 G97 S${rpm} M03\nG00 X${(d + 2).toFixed(1)} Z3.\nG76 P020060 Q100 R0.05\nG76 X${xCore} Z-${cutLen}. P${pUm} Q${qUm} F${fz}`;
       } else if (op === "tapping") {
         snippet = `M29 S${rpm}\nG99 G84 Z-${cutLen}. R3. F${fz}`;
       } else if (op === "drilling") {
