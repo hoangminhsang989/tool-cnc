@@ -282,6 +282,16 @@
         <text x="130" y="49" font-size="10.5" font-family="monospace" font-weight="700" fill="#0f172a" text-anchor="middle">Ø ≈ M - P</text>
         <text x="130" y="88" font-size="10" font-family="sans-serif" fill="#475569" text-anchor="middle">Ví dụ M10×1.5 → khoan lỗ Ø8.5 mm</text>
       </svg>`
+    },
+    calcThread: {
+      title: "Nguyên công & Tiện ren G76 (OD / ID)",
+      text: "• Tiện ren ngoài (OD): H = 0.6134 × P, chân ren X_min = M - 2H.\n• Tiện ren trong (ID): H = 0.5413 × P, lỗ khoan/tiện trước = M - 2H, đỉnh đáy ren X_max = M.\n• P/Q trong G76 tính bằng micron (1 mm = 1000).",
+      svg: `<svg viewBox="0 0 260 95">
+        <polyline points="20,58 45,26 70,58 95,26 120,58" fill="none" stroke="#d97706" stroke-width="2.2"/>
+        <line x1="125" y1="26" x2="125" y2="58" stroke="#dc2626" stroke-width="1.5"/>
+        <text x="132" y="46" font-size="10" font-family="monospace" font-weight="700" fill="#dc2626">H (OD: 0.613P | ID: 0.541P)</text>
+        <text x="130" y="84" font-size="10" font-family="monospace" fill="#475569" text-anchor="middle">G76 P020060 Q100 R0.05</text>
+      </svg>`
     }
   };
 

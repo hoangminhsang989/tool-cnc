@@ -82,12 +82,13 @@
       return;
     }
 
-    if (op === "threading") {
+    if (op === "threading" || op === "threading_id") {
       const d = Math.max(2, parseFloat($("cDia").value) || 20);
       const p = keepPitch ? Math.max(0.2, parseFloat($("cFz").value) || guessMetricPitch(d)) : guessMetricPitch(d);
       const chip = CHIP_FACTORS[toolMat] || CHIP_FACTORS.carbide;
       const maxSafeRpm = Math.floor(2200 / p);
-      const targetRpm = Math.round((mat.vcThread * chip.vc * 1000) / (Math.PI * d));
+      const idFactor = op === "threading_id" ? 0.85 : 1.0;
+      const targetRpm = Math.round((mat.vcThread * chip.vc * idFactor * 1000) / (Math.PI * d));
       const rpm = Math.max(80, Math.min(maxSafeRpm, targetRpm));
       const vc = ((Math.PI * d * rpm) / 1000).toFixed(1);
       $("cVc").value = vc;
@@ -146,13 +147,14 @@
 
   function syncOpFields() {
     const op = $("cOp").value;
+    const isThread = op === "tapping" || op === "threading" || op === "threading_id";
     $("cFlutesWrap").style.display = op === "milling" ? "flex" : "none";
     $("cAeWrap").style.display = op === "milling" ? "flex" : "none";
-    $("cApWrap").style.display = (op === "drilling" || op === "tapping" || op === "threading") ? "none" : "flex";
+    $("cApWrap").style.display = (op === "drilling" || isThread) ? "none" : "flex";
     $("cNoseWrap").style.display = op === "turning" ? "flex" : "none";
 
-    $("cDiaLabel").textContent = op === "turning" ? "ĐK phôi D (mm)" : ((op === "tapping" || op === "threading") ? "ĐK ren M (mm)" : "ĐK dao / mũi D (mm)");
-    $("cFeedLabel").textContent = op === "milling" ? "Bước tiến/răng fz (mm)" : ((op === "tapping" || op === "threading") ? "Bước ren P (mm/vòng)" : "Bước tiến f (mm/vòng)");
+    $("cDiaLabel").textContent = op === "turning" ? "ĐK phôi D (mm)" : (isThread ? "ĐK ren M (mm)" : "ĐK dao / mũi D (mm)");
+    $("cFeedLabel").textContent = op === "milling" ? "Bước tiến/răng fz (mm)" : (isThread ? "Bước ren P (mm/vòng)" : "Bước tiến f (mm/vòng)");
   }
 
   function updateCalc() {
@@ -173,16 +175,16 @@
     if (op === "milling") {
       vf = rpm * fOrFz * flutes;
       mrr = (ap * ae * vf) / 1000;
-    } else if (op === "drilling" || op === "tapping" || op === "threading") {
+    } else if (op === "drilling" || op === "tapping" || op === "threading" || op === "threading_id") {
       vf = rpm * fOrFz;
-      mrr = (op === "tapping" || op === "threading") ? 0 : (Math.PI * (d * d) / 4) * vf / 1000;
+      mrr = (op === "tapping" || op === "threading" || op === "threading_id") ? 0 : (Math.PI * (d * d) / 4) * vf / 1000;
     } else {
       vf = rpm * fOrFz;
       mrr = vc * ap * fOrFz; // cm3/min = (m/min * mm * mm) = cm3/min
     }
 
     // Power Pc (kW) = (MRR * kc) / (60 * 1000 * eta) with eta=0.8
-    const powerKw = (op === "tapping" || op === "threading") ? (rpm * fOrFz * d * 0.002) : (mrr * mat.kc) / (60 * 1000 * 0.8);
+    const powerKw = (op === "tapping" || op === "threading" || op === "threading_id") ? (rpm * fOrFz * d * 0.002) : (mrr * mat.kc) / (60 * 1000 * 0.8);
 
     // Theoretical surface roughness Ra (um) for turning: Ra ≈ (f^2 / (32 * r)) * 1000
     const raUm = op === "turning" ? ((fOrFz * fOrFz) / (32 * noseR)) * 1000 : null;
@@ -207,6 +209,11 @@
       const xCore = Math.max(0.5, d - 2 * hThread).toFixed(2);
       const tPasses = Math.max(4, Math.min(14, Math.ceil(hThread / 0.10)));
       $("cResExtra").textContent = `Tiện ren ngoài M${d}×${fOrFz}: Chiều cao H=${hThread.toFixed(3)} mm · Chân ren X_min=${xCore} mm · Chia ~${tPasses} lát (G76)`;
+    } else if (op === "threading_id") {
+      const hThread = 0.5413 * fOrFz;
+      const dHole = Math.max(0.5, d - 2 * hThread).toFixed(2);
+      const tPasses = Math.max(4, Math.min(14, Math.ceil(hThread / 0.08)));
+      $("cResExtra").textContent = `Tiện ren trong M${d}×${fOrFz}: Tiện lỗ trước Ø${dHole} mm · Chiều cao H=${hThread.toFixed(3)} mm · X_max=${d.toFixed(2)} mm (~${tPasses} lát G76)`;
     } else if (op === "tapping") {
       const drillD = Math.max(0.5, d - fOrFz).toFixed(2);
       $("cResExtra").textContent = `Taro M${d}×${fOrFz}: Khoan lỗ trước Ø${drillD} mm · Thời gian vào/ra (L=${cutLen}mm): ≈${(cutSec * 2).toFixed(1)}s · Chu trình G84 Z-${cutLen}. F${fOrFz}`;
@@ -236,7 +243,7 @@
     if (op === "tapping" && rpm > 800) {
       warns.push(`Taro ren S = ${Math.round(rpm)} RPM hơi cao — dễ gãy mũi taro nếu máy đồng bộ chậm; khuyến nghị S ≤ 600–800 RPM.`);
     }
-    if (op === "threading" && vf > 2500) {
+    if ((op === "threading" || op === "threading_id") && vf > 2500) {
       const recS = Math.floor(2200 / fOrFz);
       warns.push(`Tốc độ chạy bàn Z khi tiện ren (S × P = ${Math.round(vf)} mm/ph) quá cao, dễ lệch bước ren hoặc báo lỗi servo! Nên giảm S ≤ ${recS} RPM.`);
     }
@@ -358,14 +365,16 @@
       let snippet = "";
       if (op === "milling") {
         snippet = `G94 S${rpm} M03\nG01 F${vf}.`;
-      } else if (op === "threading") {
+      } else if (op === "threading" || op === "threading_id") {
         const d = Math.max(2, parseFloat($("cDia").value) || 20);
-        const hThread = 0.6134 * fz;
-        const xCore = Math.max(0.5, d - 2 * hThread).toFixed(2);
-        const tPasses = Math.max(4, Math.min(14, Math.ceil(hThread / 0.10)));
+        const isId = op === "threading_id";
+        const hThread = (isId ? 0.5413 : 0.6134) * fz;
+        const xTarget = isId ? d.toFixed(2) : Math.max(0.5, d - 2 * hThread).toFixed(2);
+        const xStart = isId ? Math.max(1.0, d - 2 * hThread - 2.0).toFixed(1) : (d + 2).toFixed(1);
+        const tPasses = Math.max(4, Math.min(14, Math.ceil(hThread / (isId ? 0.08 : 0.10))));
         const pUm = Math.round(hThread * 1000);
         const qUm = Math.round((hThread / Math.sqrt(tPasses)) * 1000);
-        snippet = `G99 G97 S${rpm} M03\nG00 X${(d + 2).toFixed(1)} Z3.\nG76 P020060 Q100 R0.05\nG76 X${xCore} Z-${cutLen}. P${pUm} Q${qUm} F${fz}`;
+        snippet = `G99 G97 S${rpm} M03\nG00 X${xStart} Z3.\nG76 P020060 Q100 R0.05\nG76 X${xTarget} Z-${cutLen}. P${pUm} Q${qUm} F${fz}`;
       } else if (op === "tapping") {
         snippet = `M29 S${rpm}\nG99 G84 Z-${cutLen}. R3. F${fz}`;
       } else if (op === "drilling") {
