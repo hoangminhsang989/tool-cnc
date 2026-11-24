@@ -116,6 +116,9 @@
     } else if (op === "drilling") {
       baseVc = mat.vcDrill;
       baseF = mat.fDrill;
+    } else if (op === "grooving") {
+      baseVc = mat.vcTurn * 0.72;
+      baseF = matKey === "inox" || matKey === "hardened" ? 0.05 : 0.08;
     }
 
     const vc = Math.max(5, Math.round(baseVc * vcFactor * finishVcFactor));
@@ -136,6 +139,11 @@
       const f = +(baseF * (d < 6 ? 0.65 : d > 16 ? 1.2 : 1.0)).toFixed(3);
       $("cFz").value = f;
       $("cVf").value = Math.round(rpm * f);
+    } else if (op === "grooving") {
+      const f = +(baseF * (cutType === "finish" ? 0.75 : 1.0)).toFixed(2);
+      $("cFz").value = f;
+      $("cVf").value = Math.round(rpm * f);
+      $("cAp").value = 3.0;
     } else {
       const f = +(baseF * finishFeedFactor).toFixed(2);
       $("cFz").value = f;
@@ -153,8 +161,9 @@
     $("cApWrap").style.display = (op === "drilling" || isThread) ? "none" : "flex";
     $("cNoseWrap").style.display = op === "turning" ? "flex" : "none";
 
-    $("cDiaLabel").textContent = op === "turning" ? "ĐK phôi D (mm)" : (isThread ? "ĐK ren M (mm)" : "ĐK dao / mũi D (mm)");
+    $("cDiaLabel").textContent = (op === "turning" || op === "grooving") ? "ĐK phôi D (mm)" : (isThread ? "ĐK ren M (mm)" : "ĐK dao / mũi D (mm)");
     $("cFeedLabel").textContent = op === "milling" ? "Bước tiến/răng fz (mm)" : (isThread ? "Bước ren P (mm/vòng)" : "Bước tiến f (mm/vòng)");
+    if ($("cApLabel")) $("cApLabel").textContent = op === "grooving" ? "Rộng lưỡi cắt W (mm)" : "Chiều sâu cắt ap (mm)";
     if ($("cTpiBtn")) $("cTpiBtn").style.display = isThread ? "inline" : "none";
   }
 
@@ -166,6 +175,10 @@
     const cutLen = Math.max(1, parseFloat($("cCutLen")?.value) || 50);
     if (op === "milling") {
       return `G94 S${rpm} M03\nG01 F${vf}.`;
+    }
+    if (op === "grooving") {
+      const d = Math.max(2, parseFloat($("cDia").value) || 30);
+      return `G99 G97 S${rpm} M03\nG00 X${(d + 2).toFixed(1)} Z-${cutLen}.\nG75 R0.5\nG75 X0. P1500 F${fz.toFixed(2)}`;
     }
     if (op === "threading" || op === "threading_id") {
       const d = Math.max(2, parseFloat($("cDia").value) || 20);
@@ -232,6 +245,9 @@
 
     if (raUm !== null) {
       $("cResExtra").textContent = `Thời gian cắt (L=${cutLen}mm): ${timeTxt} · Độ bóng Ra ≈ ${raUm.toFixed(2)} µm (R=${noseR}) · kc=${mat.kc} N/mm²`;
+    } else if (op === "grooving") {
+      const partSec = Math.max(0.5, ((d / 2) / Math.max(1, vf)) * 60);
+      $("cResExtra").textContent = `Cắt đứt / Rãnh Ø${d} (lưỡi W=${ap}mm): Thời gian tới tâm ≈ ${partSec.toFixed(1)}s · Nhấp bẻ phoi G75 P1500 (1.5mm/nhát)`;
     } else if (op === "milling") {
       $("cResExtra").textContent = `Thời gian cắt (L=${cutLen}mm): ${timeTxt} · f=${(fOrFz * flutes).toFixed(3)} mm/v (${flutes} me) · kc=${mat.kc} N/mm²`;
     } else if (op === "threading") {

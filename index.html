@@ -406,6 +406,7 @@
             <span>Nguyên công</span>
             <select id="cOp">
               <option value="turning" selected>Tiện ngoài / Tiện lỗ</option>
+              <option value="grooving">Tiện rãnh / Cắt đứt (G75)</option>
               <option value="threading">Tiện ren ngoài (G76 OD)</option>
               <option value="threading_id">Tiện ren trong (G76 ID)</option>
               <option value="milling">Phay ngón / Phay mặt</option>
@@ -495,7 +496,7 @@
 
         <div class="grid-3">
           <label class="field" id="cApWrap">
-            <span>Chiều sâu cắt ap (mm)</span>
+            <span id="cApLabel">Chiều sâu cắt ap (mm)</span>
             <input type="number" id="cAp" value="1.5" step="0.1" min="0.05" />
           </label>
           <label class="field" id="cAeWrap" style="display: none;">
