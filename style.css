@@ -709,6 +709,20 @@ body {
   white-space: pre;
 }
 
+.snippet-pre {
+  margin-top: 8px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #0f172a;
+  overflow-x: auto;
+  white-space: pre;
+}
+
 .toast {
   position: fixed;
   bottom: 22px;

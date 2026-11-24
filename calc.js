@@ -155,6 +155,36 @@
 
     $("cDiaLabel").textContent = op === "turning" ? "ĐK phôi D (mm)" : (isThread ? "ĐK ren M (mm)" : "ĐK dao / mũi D (mm)");
     $("cFeedLabel").textContent = op === "milling" ? "Bước tiến/răng fz (mm)" : (isThread ? "Bước ren P (mm/vòng)" : "Bước tiến f (mm/vòng)");
+    if ($("cTpiBtn")) $("cTpiBtn").style.display = isThread ? "inline" : "none";
+  }
+
+  function buildCalcSnippet() {
+    const op = $("cOp").value;
+    const rpm = Math.round(parseFloat($("cRpm").value) || 1000);
+    const fz = Math.max(0.001, parseFloat($("cFz").value) || 0.15);
+    const vf = Math.round(parseFloat($("cVf").value) || 200);
+    const cutLen = Math.max(1, parseFloat($("cCutLen")?.value) || 50);
+    if (op === "milling") {
+      return `G94 S${rpm} M03\nG01 F${vf}.`;
+    }
+    if (op === "threading" || op === "threading_id") {
+      const d = Math.max(2, parseFloat($("cDia").value) || 20);
+      const isId = op === "threading_id";
+      const hThread = (isId ? 0.5413 : 0.6134) * fz;
+      const xTarget = isId ? d.toFixed(2) : Math.max(0.5, d - 2 * hThread).toFixed(2);
+      const xStart = isId ? Math.max(1.0, d - 2 * hThread - 2.0).toFixed(1) : (d + 2).toFixed(1);
+      const tPasses = Math.max(4, Math.min(14, Math.ceil(hThread / (isId ? 0.08 : 0.10))));
+      const pUm = Math.round(hThread * 1000);
+      const qUm = Math.round((hThread / Math.sqrt(tPasses)) * 1000);
+      return `G99 G97 S${rpm} M03\nG00 X${xStart} Z3.\nG76 P020060 Q100 R0.05\nG76 X${xTarget} Z-${cutLen}. P${pUm} Q${qUm} F${fz}`;
+    }
+    if (op === "tapping") {
+      return `M29 S${rpm}\nG99 G84 Z-${cutLen}. R3. F${fz}`;
+    }
+    if (op === "drilling") {
+      return `G99 G97 S${rpm} M03\nG83 Z-${cutLen}. Q3000 R2. F${fz.toFixed(3)}`;
+    }
+    return `G99 G97 S${rpm} M03\nG01 F${fz.toFixed(2)}`;
   }
 
   function updateCalc() {
@@ -258,6 +288,10 @@
         cw.innerHTML = warns.map((w) => `<div>• ${w}</div>`).join("");
       }
     }
+
+    if ($("cSnippetPreview")) {
+      $("cSnippetPreview").textContent = buildCalcSnippet();
+    }
   }
 
   function bindCalcEvents() {
@@ -356,32 +390,22 @@
       applyCalcPreset();
     });
 
+    if ($("cTpiBtn")) {
+      $("cTpiBtn").addEventListener("click", () => {
+        const val = prompt("Nhập số ren / inch (TPI) để đổi sang mm (vd 11, 14, 16, 20):", "16");
+        if (!val) return;
+        const tpi = parseFloat(val);
+        if (!Number.isFinite(tpi) || tpi <= 0) return;
+        const mm = +(25.4 / tpi).toFixed(3);
+        $("cFz").value = mm;
+        const rpm = Math.max(1, parseFloat($("cRpm").value) || 1000);
+        $("cVf").value = Math.round(rpm * mm);
+        updateCalc();
+      });
+    }
+
     $("btnCalcCopySF").addEventListener("click", async () => {
-      const op = $("cOp").value;
-      const rpm = Math.round(parseFloat($("cRpm").value) || 1000);
-      const fz = Math.max(0.001, parseFloat($("cFz").value) || 0.15);
-      const vf = Math.round(parseFloat($("cVf").value) || 200);
-      const cutLen = Math.max(1, parseFloat($("cCutLen")?.value) || 50);
-      let snippet = "";
-      if (op === "milling") {
-        snippet = `G94 S${rpm} M03\nG01 F${vf}.`;
-      } else if (op === "threading" || op === "threading_id") {
-        const d = Math.max(2, parseFloat($("cDia").value) || 20);
-        const isId = op === "threading_id";
-        const hThread = (isId ? 0.5413 : 0.6134) * fz;
-        const xTarget = isId ? d.toFixed(2) : Math.max(0.5, d - 2 * hThread).toFixed(2);
-        const xStart = isId ? Math.max(1.0, d - 2 * hThread - 2.0).toFixed(1) : (d + 2).toFixed(1);
-        const tPasses = Math.max(4, Math.min(14, Math.ceil(hThread / (isId ? 0.08 : 0.10))));
-        const pUm = Math.round(hThread * 1000);
-        const qUm = Math.round((hThread / Math.sqrt(tPasses)) * 1000);
-        snippet = `G99 G97 S${rpm} M03\nG00 X${xStart} Z3.\nG76 P020060 Q100 R0.05\nG76 X${xTarget} Z-${cutLen}. P${pUm} Q${qUm} F${fz}`;
-      } else if (op === "tapping") {
-        snippet = `M29 S${rpm}\nG99 G84 Z-${cutLen}. R3. F${fz}`;
-      } else if (op === "drilling") {
-        snippet = `G99 G97 S${rpm} M03\nG83 Z-${cutLen}. Q3000 R2. F${fz.toFixed(3)}`;
-      } else {
-        snippet = `G99 G97 S${rpm} M03\nG01 F${fz.toFixed(2)}`;
-      }
+      const snippet = buildCalcSnippet();
       try {
         await navigator.clipboard.writeText(snippet);
         const t = $("toast");
