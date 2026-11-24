@@ -18,9 +18,9 @@ Bộ công cụ web chạy trực tiếp trên trình duyệt (100% offline, kh�
 
 ## 2. Tab `Tính Chế Độ Cắt`
 
-- **6 nguyên công:** Tiện ngoài / Tiện lỗ, **Tiện ren ngoài (`G76 OD`)**, **Tiện ren trong (`G76 ID`)**, Phay ngón / Phay mặt, Khoan lỗ (`Drilling`), và **Taro ren (`Tapping G84`)**.
+- **7 nguyên công:** Tiện ngoài / Tiện lỗ, **Tiện rãnh / Cắt đứt (`G75`)**, **Tiện ren ngoài (`G76 OD`)**, **Tiện ren trong (`G76 ID`)**, Phay ngón / Phay mặt, Khoan lỗ (`Drilling`), và **Taro ren (`Tapping G84`)**.
 - **7 nhóm vật liệu & 6 dòng chíp/dao:** Tự điều chỉnh `Vc`, `f / fz` theo `CVD/PVD`, `Cermet`, `Hợp kim không phủ`, `HSS`, `CBN`, `PCD`.
-- **Tính 2 chiều & Chu trình G-code:** Tính `S (RPM)`, `Vf (mm/ph)`, `MRR (cm³/ph)`, công suất cắt `Pc (kW)`, độ bóng lý thuyết `Ra (µm)` theo mã bán kính mũi dao ISO (`R0.2`–`R1.2`), ước tính thời gian cắt `L`, quy đổi ren hệ Inch **`TPI→mm`**, hiển thị trực tiếp và copy nhanh mã `G76` / `G84` / `G83` / `G94` / `G99`.
+- **Tính 2 chiều & Chu trình G-code:** Tính `S (RPM)`, `Vf (mm/ph)`, `MRR (cm³/ph)`, công suất cắt `Pc (kW)`, độ bóng lý thuyết `Ra (µm)` theo mã bán kính mũi dao ISO (`R0.2`–`R1.2`), ước tính thời gian cắt `L`, quy đổi ren hệ Inch **`TPI→mm`**, hiển thị trực tiếp và copy nhanh mã `G75` / `G76` / `G84` / `G83` / `G94` / `G99`.
 - **Bảng tra tương tác:** Bấm chọn trực tiếp dòng vật liệu để nạp Vc chuẩn, bấm cỡ ren `M3–M20` để tính Taro `G84`, hoặc bấm kích thước mũi khoan (`2.5–17.5 mm`) để tính chế độ khoan.
 
 ## 3. Hướng dẫn trực tiếp (Hover 3 giây)

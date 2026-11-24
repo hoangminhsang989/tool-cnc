@@ -284,13 +284,13 @@
       </svg>`
     },
     calcThread: {
-      title: "Nguyên công & Tiện ren G76 (OD / ID)",
-      text: "• Tiện ren ngoài (OD): H = 0.6134 × P, chân ren X_min = M - 2H.\n• Tiện ren trong (ID): H = 0.5413 × P, lỗ khoan/tiện trước = M - 2H, đỉnh đáy ren X_max = M.\n• P/Q trong G76 tính bằng micron (1 mm = 1000).",
+      title: "Nguyên công: Tiện rãnh G75 & Tiện ren G76 (OD / ID)",
+      text: "• Tiện rãnh / Cắt đứt (G75): Hạ Vc & f (0.05–0.08), nhấp bẻ phoi P1500.\n• Tiện ren ngoài (OD): H = 0.6134 × P, chân ren X_min = M - 2H.\n• Tiện ren trong (ID): H = 0.5413 × P, lỗ khoan trước = M - 2H, đáy X_max = M.",
       svg: `<svg viewBox="0 0 260 95">
         <polyline points="20,58 45,26 70,58 95,26 120,58" fill="none" stroke="#d97706" stroke-width="2.2"/>
         <line x1="125" y1="26" x2="125" y2="58" stroke="#dc2626" stroke-width="1.5"/>
         <text x="132" y="46" font-size="10" font-family="monospace" font-weight="700" fill="#dc2626">H (OD: 0.613P | ID: 0.541P)</text>
-        <text x="130" y="84" font-size="10" font-family="monospace" fill="#475569" text-anchor="middle">G76 P020060 Q100 R0.05</text>
+        <text x="130" y="84" font-size="10" font-family="monospace" fill="#475569" text-anchor="middle">G75 (Rãnh/Cắt đứt) · G76 (Tiện ren)</text>
       </svg>`
     }
   };
