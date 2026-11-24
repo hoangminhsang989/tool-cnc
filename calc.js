@@ -3,13 +3,13 @@
 
   // Material database: kc (N/mm2 specific cutting force), vcBase (m/min for Carbide rough/finish)
   const MAT_DB = {
-    alu:        { name: "Nhôm (Al 6061)",      kc: 750,  vcTurn: 220, vcMill: 200, vcDrill: 90,  fTurn: 0.22, fzMill: 0.08, fDrill: 0.16 },
-    brass:      { name: "Đồng thau (Brass)",   kc: 850,  vcTurn: 180, vcMill: 160, vcDrill: 75,  fTurn: 0.20, fzMill: 0.07, fDrill: 0.15 },
-    cast_iron:  { name: "Gang xám (FC250)",    kc: 1300, vcTurn: 140, vcMill: 120, vcDrill: 45,  fTurn: 0.25, fzMill: 0.08, fDrill: 0.18 },
-    mild_steel: { name: "Thép mềm (SS400)",    kc: 1800, vcTurn: 160, vcMill: 130, vcDrill: 55,  fTurn: 0.22, fzMill: 0.06, fDrill: 0.15 },
-    c45:        { name: "Thép C45 / 40X",      kc: 2100, vcTurn: 130, vcMill: 105, vcDrill: 42,  fTurn: 0.18, fzMill: 0.05, fDrill: 0.12 },
-    inox:       { name: "Inox 304",            kc: 2450, vcTurn: 95,  vcMill: 75,  vcDrill: 26,  fTurn: 0.15, fzMill: 0.04, fDrill: 0.10 },
-    hardened:   { name: "Thép sau nhiệt (45-55HRC)", kc: 3200, vcTurn: 65, vcMill: 55, vcDrill: 16, fTurn: 0.10, fzMill: 0.03, fDrill: 0.06 },
+    alu:        { name: "Nhôm (Al 6061)",      kc: 750,  vcTurn: 220, vcMill: 200, vcDrill: 90,  vcTap: 18, fTurn: 0.22, fzMill: 0.08, fDrill: 0.16 },
+    brass:      { name: "Đồng thau (Brass)",   kc: 850,  vcTurn: 180, vcMill: 160, vcDrill: 75,  vcTap: 15, fTurn: 0.20, fzMill: 0.07, fDrill: 0.15 },
+    cast_iron:  { name: "Gang xám (FC250)",    kc: 1300, vcTurn: 140, vcMill: 120, vcDrill: 45,  vcTap: 10, fTurn: 0.25, fzMill: 0.08, fDrill: 0.18 },
+    mild_steel: { name: "Thép mềm (SS400)",    kc: 1800, vcTurn: 160, vcMill: 130, vcDrill: 55,  vcTap: 12, fTurn: 0.22, fzMill: 0.06, fDrill: 0.15 },
+    c45:        { name: "Thép C45 / 40X",      kc: 2100, vcTurn: 130, vcMill: 105, vcDrill: 42,  vcTap: 10, fTurn: 0.18, fzMill: 0.05, fDrill: 0.12 },
+    inox:       { name: "Inox 304",            kc: 2450, vcTurn: 95,  vcMill: 75,  vcDrill: 26,  vcTap: 6,  fTurn: 0.15, fzMill: 0.04, fDrill: 0.10 },
+    hardened:   { name: "Thép sau nhiệt (45-55HRC)", kc: 3200, vcTurn: 65, vcMill: 55, vcDrill: 16, vcTap: 4, fTurn: 0.10, fzMill: 0.03, fDrill: 0.06 },
   };
 
   const CALC_KEY = "cnc_calc_last_v1";
@@ -49,12 +49,38 @@
     pcd:              { vc: 2.40, f: 0.90 },
   };
 
-  function applyCalcPreset() {
+  function guessMetricPitch(d) {
+    if (d <= 3.2) return 0.5;
+    if (d <= 4.2) return 0.7;
+    if (d <= 5.2) return 0.8;
+    if (d <= 6.5) return 1.0;
+    if (d <= 8.5) return 1.25;
+    if (d <= 10.5) return 1.5;
+    if (d <= 12.5) return 1.75;
+    if (d <= 16.5) return 2.0;
+    return 2.5;
+  }
+
+  function applyCalcPreset(keepPitchArg) {
+    const keepPitch = keepPitchArg === true;
     const op = $("cOp").value;
     const matKey = $("cMat").value;
     const mat = MAT_DB[matKey] || MAT_DB.mild_steel;
     const toolMat = $("cToolMat").value;
     const cutType = $("cCutType").value; // rough | finish
+
+    if (op === "tapping") {
+      const d = Math.max(1, parseFloat($("cDia").value) || 10);
+      const vc = mat.vcTap;
+      const rpm = Math.max(30, Math.round((vc * 1000) / (Math.PI * d)));
+      const p = keepPitch ? Math.max(0.2, parseFloat($("cFz").value) || guessMetricPitch(d)) : guessMetricPitch(d);
+      $("cVc").value = vc;
+      $("cRpm").value = rpm;
+      $("cFz").value = p;
+      $("cVf").value = Math.round(rpm * p);
+      updateCalc();
+      return;
+    }
 
     const chip = CHIP_FACTORS[toolMat] || CHIP_FACTORS.carbide;
     let vcFactor = chip.vc;
@@ -106,11 +132,11 @@
     const op = $("cOp").value;
     $("cFlutesWrap").style.display = op === "milling" ? "flex" : "none";
     $("cAeWrap").style.display = op === "milling" ? "flex" : "none";
-    $("cApWrap").style.display = op === "drilling" ? "none" : "flex";
+    $("cApWrap").style.display = (op === "drilling" || op === "tapping") ? "none" : "flex";
     $("cNoseWrap").style.display = op === "turning" ? "flex" : "none";
 
-    $("cDiaLabel").textContent = op === "turning" ? "ĐK phôi D (mm)" : "ĐK dao / mũi D (mm)";
-    $("cFeedLabel").textContent = op === "milling" ? "Bước tiến/răng fz (mm)" : "Bước tiến f (mm/vòng)";
+    $("cDiaLabel").textContent = op === "turning" ? "ĐK phôi D (mm)" : (op === "tapping" ? "ĐK ren M (mm)" : "ĐK dao / mũi D (mm)");
+    $("cFeedLabel").textContent = op === "milling" ? "Bước tiến/răng fz (mm)" : (op === "tapping" ? "Bước ren P (mm/vòng)" : "Bước tiến f (mm/vòng)");
   }
 
   function updateCalc() {
@@ -131,16 +157,16 @@
     if (op === "milling") {
       vf = rpm * fOrFz * flutes;
       mrr = (ap * ae * vf) / 1000;
-    } else if (op === "drilling") {
+    } else if (op === "drilling" || op === "tapping") {
       vf = rpm * fOrFz;
-      mrr = (Math.PI * (d * d) / 4) * vf / 1000;
+      mrr = op === "tapping" ? 0 : (Math.PI * (d * d) / 4) * vf / 1000;
     } else {
       vf = rpm * fOrFz;
       mrr = vc * ap * fOrFz; // cm3/min = (m/min * mm * mm) = cm3/min
     }
 
     // Power Pc (kW) = (MRR * kc) / (60 * 1000 * eta) with eta=0.8
-    const powerKw = (mrr * mat.kc) / (60 * 1000 * 0.8);
+    const powerKw = op === "tapping" ? (rpm * fOrFz * d * 0.002) : (mrr * mat.kc) / (60 * 1000 * 0.8);
 
     // Theoretical surface roughness Ra (um) for turning: Ra ≈ (f^2 / (32 * r)) * 1000
     const raUm = op === "turning" ? ((fOrFz * fOrFz) / (32 * noseR)) * 1000 : null;
@@ -160,6 +186,9 @@
       $("cResExtra").textContent = `Thời gian cắt (L=${cutLen}mm): ${timeTxt} · Độ bóng Ra ≈ ${raUm.toFixed(2)} µm (R=${noseR}) · kc=${mat.kc} N/mm²`;
     } else if (op === "milling") {
       $("cResExtra").textContent = `Thời gian cắt (L=${cutLen}mm): ${timeTxt} · f=${(fOrFz * flutes).toFixed(3)} mm/v (${flutes} me) · kc=${mat.kc} N/mm²`;
+    } else if (op === "tapping") {
+      const drillD = Math.max(0.5, d - fOrFz).toFixed(2);
+      $("cResExtra").textContent = `Taro M${d}×${fOrFz}: Khoan lỗ trước Ø${drillD} mm · Thời gian vào/ra (L=${cutLen}mm): ≈${(cutSec * 2).toFixed(1)}s · Chu trình G84 Z-${cutLen}. F${fOrFz}`;
     } else {
       $("cResExtra").textContent = `Thời gian khoan (L=${cutLen}mm): ${timeTxt} · Nếu taro bước P=${fOrFz}mm → Vf=${Math.round(rpm * fOrFz)} mm/ph`;
     }
@@ -182,6 +211,9 @@
     }
     if (rpm > 4000) {
       warns.push(`Số vòng quay S = ${Math.round(rpm)} RPM khá cao — kiểm tra giới hạn RPM tối đa của trục chính (nhiều máy tiện chỉ đạt 3000–4000 RPM).`);
+    }
+    if (op === "tapping" && rpm > 800) {
+      warns.push(`Taro ren S = ${Math.round(rpm)} RPM hơi cao — dễ gãy mũi taro nếu máy đồng bộ chậm; khuyến nghị S ≤ 600–800 RPM.`);
     }
 
     const cw = $("cWarningsBox");
@@ -284,9 +316,15 @@
       const rpm = Math.round(parseFloat($("cRpm").value) || 1000);
       const fz = Math.max(0.001, parseFloat($("cFz").value) || 0.15);
       const vf = Math.round(parseFloat($("cVf").value) || 200);
-      const snippet = op === "milling"
-        ? `S${rpm} M03 F${vf}.`
-        : `G97 S${rpm} M03\nG01 F${fz.toFixed(op === "drilling" ? 3 : 2)}`;
+      const cutLen = Math.max(1, parseFloat($("cCutLen")?.value) || 50);
+      let snippet = "";
+      if (op === "milling") {
+        snippet = `S${rpm} M03 F${vf}.`;
+      } else if (op === "tapping") {
+        snippet = `G97 S${rpm} M03\nG84 Z-${cutLen}. F${fz}`;
+      } else {
+        snippet = `G97 S${rpm} M03\nG01 F${fz.toFixed(op === "drilling" ? 3 : 2)}`;
+      }
       try {
         await navigator.clipboard.writeText(snippet);
         const t = $("toast");
@@ -329,6 +367,18 @@
       });
     }
     if (refTables[1]) {
+      refTables[1].querySelectorAll("thead th:not(:first-child)").forEach((th) => {
+        const m = th.textContent.trim().match(/^M(\d+(?:\.\d+)?)×(\d+(?:\.\d+)?)$/);
+        if (!m) return;
+        th.classList.add("clickable-cell");
+        th.title = `Bấm để tính Taro ${th.textContent.trim()}`;
+        th.addEventListener("click", () => {
+          $("cOp").value = "tapping";
+          $("cDia").value = m[1];
+          $("cFz").value = m[2];
+          applyCalcPreset(true);
+        });
+      });
       refTables[1].querySelectorAll("tbody td:not(:first-child)").forEach((td) => {
         const dVal = parseFloat(td.textContent);
         if (!Number.isFinite(dVal)) return;

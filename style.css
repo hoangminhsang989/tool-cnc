@@ -143,13 +143,15 @@ body {
   cursor: pointer;
 }
 
-.ref-table td.clickable-cell {
+.ref-table td.clickable-cell,
+.ref-table th.clickable-cell {
   cursor: pointer;
   color: var(--blue);
   font-weight: 700;
 }
 
-.ref-table td.clickable-cell:hover {
+.ref-table td.clickable-cell:hover,
+.ref-table th.clickable-cell:hover {
   background: var(--accent-soft);
   color: var(--accent-hover);
 }
