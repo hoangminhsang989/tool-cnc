@@ -239,6 +239,27 @@
         <line x1="154" y1="22" x2="106" y2="70" stroke="#d97706" stroke-width="2"/>
         <text x="130" y="90" font-size="10" font-family="sans-serif" fill="#475569" text-anchor="middle">Quan sát trực quan biên dạng răng</text>
       </svg>`
+    },
+    calcChip: {
+      title: "Chọn Vc theo loại Chíp / Dao cắt",
+      text: "• CVD/PVD: Chíp hợp kim phủ đa năng (CNMG, WNMG, APMT).\n• Cermet: Chạy tinh bóng thép tốc độ cao.\n• CBN: Tiện cứng thép sau nhiệt (>45 HRC).\n• PCD: Kim cương chuyên Nhôm / Đồng (không cắt thép).",
+      svg: `<svg viewBox="0 0 260 95">
+        <polygon points="45,20 95,20 110,60 60,72" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+        <circle cx="77" cy="45" r="7" fill="#ffffff" stroke="#d97706" stroke-width="1.5"/>
+        <text x="135" y="34" font-size="10.5" font-family="monospace" font-weight="700" fill="#0f172a">CVD/PVD: 1.0×</text>
+        <text x="135" y="50" font-size="10.5" font-family="monospace" font-weight="700" fill="#16a34a">Cermet: 1.25×</text>
+        <text x="135" y="66" font-size="10.5" font-family="monospace" font-weight="700" fill="#dc2626">CBN/PCD: >2.0×</text>
+      </svg>`
+    },
+    calcRa: {
+      title: "Bán kính mũi dao R & Độ bóng Ra",
+      text: "Độ nhám lý thuyết tỉ lệ bình phương với bước tiến f và tỉ lệ nghịch với R mũi dao: Ra ≈ f² / (32 × R). Muốn bóng mịn, giảm f hoặc dùng R0.4 / R0.8.",
+      svg: `<svg viewBox="0 0 260 95">
+        <path d="M 30 62 Q 60 32 90 62 Q 120 32 150 62 Q 180 32 210 62" fill="none" stroke="#d97706" stroke-width="2.2"/>
+        <line x1="60" y1="22" x2="120" y2="22" stroke="#0f172a" stroke-width="1.3"/>
+        <text x="90" y="17" font-size="10" font-family="monospace" font-weight="700" fill="#0f172a" text-anchor="middle">f (mm/vòng)</text>
+        <text x="130" y="84" font-size="10" font-family="sans-serif" fill="#475569" text-anchor="middle">Ra ≈ f² / (32 × R) · R lớn hơn = bề mặt mịn hơn</text>
+      </svg>`
     }
   };
 

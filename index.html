@@ -421,7 +421,7 @@
         </div>
 
         <div class="grid-2">
-          <label class="field">
+          <label class="field" data-help="calcChip">
             <span>Loại chíp / dao cắt</span>
             <select id="cToolMat">
               <option value="carbide" selected>Chíp Hợp kim phủ (CVD/PVD)</option>
@@ -472,7 +472,7 @@
             <span>Số me cắt Z</span>
             <input type="number" id="cFlutes" value="4" step="1" min="1" max="12" />
           </label>
-          <label class="field" id="cNoseWrap">
+          <label class="field" id="cNoseWrap" data-help="calcRa">
             <span>R mũi dao (ISO)</span>
             <select id="cNoseR">
               <option value="0.2">R0.2 (Tinh / ...02)</option>
@@ -542,6 +542,42 @@
               <tr><td>Thép C45 / 40X</td><td>100 – 150</td><td>0.10 – 0.22</td><td>85 – 125</td><td>0.03 – 0.07</td><td>35 – 50</td></tr>
               <tr><td>Inox 304</td><td>75 – 115</td><td>0.08 – 0.18</td><td>60 – 90</td><td>0.025 – 0.05</td><td>20 – 32</td></tr>
               <tr><td>Thép sau nhiệt (45–55 HRC)</td><td>50 – 80</td><td>0.05 – 0.12</td><td>45 – 70</td><td>0.02 – 0.04</td><td>12 – 20</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Bảng tra nhanh Mũi khoan lỗ trước khi Taro (Ren hệ Mét)</h2>
+        <div class="table-wrap">
+          <table class="ref-table">
+            <thead>
+              <tr>
+                <th>Cỡ ren</th>
+                <th>M3×0.5</th>
+                <th>M4×0.7</th>
+                <th>M5×0.8</th>
+                <th>M6×1.0</th>
+                <th>M8×1.25</th>
+                <th>M10×1.5</th>
+                <th>M12×1.75</th>
+                <th>M16×2.0</th>
+                <th>M20×2.5</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Mũi khoan (mm)</td>
+                <td>2.5</td>
+                <td>3.3</td>
+                <td>4.2</td>
+                <td>5.0</td>
+                <td>6.8</td>
+                <td>8.5</td>
+                <td>10.2</td>
+                <td>14.0</td>
+                <td>17.5</td>
+              </tr>
             </tbody>
           </table>
         </div>
