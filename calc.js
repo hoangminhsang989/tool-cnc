@@ -311,6 +311,19 @@
 
     $("btnCalcSuggest").addEventListener("click", applyCalcPreset);
 
+    $("btnCalcReset").addEventListener("click", () => {
+      $("cOp").value = "turning";
+      $("cMat").value = "mild_steel";
+      $("cToolMat").value = "carbide";
+      $("cCutType").value = "rough";
+      $("cDia").value = "30";
+      $("cFlutes").value = "4";
+      $("cNoseR").value = "0.4";
+      $("cCutLen").value = "50";
+      try { localStorage.removeItem(CALC_KEY); } catch {}
+      applyCalcPreset();
+    });
+
     $("btnCalcCopySF").addEventListener("click", async () => {
       const op = $("cOp").value;
       const rpm = Math.round(parseFloat($("cRpm").value) || 1000);

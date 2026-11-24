@@ -260,6 +260,28 @@
         <text x="90" y="17" font-size="10" font-family="monospace" font-weight="700" fill="#0f172a" text-anchor="middle">f (mm/vòng)</text>
         <text x="130" y="84" font-size="10" font-family="sans-serif" fill="#475569" text-anchor="middle">Ra ≈ f² / (32 × R) · R lớn hơn = bề mặt mịn hơn</text>
       </svg>`
+    },
+    calcParams: {
+      title: "Liên hệ giữa D, Vc, S (RPM) & Vf",
+      text: "• S = (Vc × 1000) / (π × D)\n• Tiện / Khoan / Taro: Vf = S × f\n• Phay: Vf = S × fz × Z (số me)\n• Công suất cắt Pc = (MRR × kc) / 48000 (kW).",
+      svg: `<svg viewBox="0 0 260 95">
+        <rect x="16" y="14" width="228" height="66" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+        <text x="130" y="34" font-size="11" font-family="monospace" font-weight="700" fill="#0f172a" text-anchor="middle">S = (Vc × 1000) / (π × D)</text>
+        <text x="130" y="53" font-size="10.5" font-family="monospace" fill="#0284c7" text-anchor="middle">Vf = S × fz × Z (mm/phút)</text>
+        <text x="130" y="71" font-size="10" font-family="sans-serif" fill="#475569" text-anchor="middle">Đổi Vc hoặc S đều tự động cập nhật chiều còn lại</text>
+      </svg>`
+    },
+    calcTap: {
+      title: "Tra nhanh Khoan lỗ & Taro ren hệ Mét",
+      text: "Mũi khoan lỗ chuẩn trước khi taro cắt ren ≈ D_ren - Bước P. Bấm vào cỡ ren hàng trên để tính chu trình Taro G84, hoặc bấm cỡ mũi hàng dưới để tính chế độ Khoan.",
+      svg: `<svg viewBox="0 0 260 95">
+        <rect x="40" y="20" width="180" height="52" fill="#e2e8f0" stroke="#475569"/>
+        <rect x="95" y="20" width="70" height="52" fill="#ffffff" stroke="#475569"/>
+        <polyline points="95,24 89,30 95,36 89,42 95,48 89,54 95,60 89,66 95,70" fill="none" stroke="#d97706" stroke-width="1.6"/>
+        <polyline points="165,24 171,30 165,36 171,42 165,48 171,54 165,60 171,66 165,70" fill="none" stroke="#d97706" stroke-width="1.6"/>
+        <text x="130" y="49" font-size="10.5" font-family="monospace" font-weight="700" fill="#0f172a" text-anchor="middle">Ø ≈ M - P</text>
+        <text x="130" y="88" font-size="10" font-family="sans-serif" fill="#475569" text-anchor="middle">Ví dụ M10×1.5 → khoan lỗ Ø8.5 mm</text>
+      </svg>`
     }
   };
 
