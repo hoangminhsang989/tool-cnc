@@ -276,6 +276,26 @@
 
     $("btnCalcSuggest").addEventListener("click", applyCalcPreset);
 
+    $("btnCalcCopySF").addEventListener("click", async () => {
+      const op = $("cOp").value;
+      const rpm = Math.round(parseFloat($("cRpm").value) || 1000);
+      const fz = Math.max(0.001, parseFloat($("cFz").value) || 0.15);
+      const vf = Math.round(parseFloat($("cVf").value) || 200);
+      const snippet = op === "milling"
+        ? `S${rpm} M03 F${vf}.`
+        : `G97 S${rpm} M03\nG01 F${fz.toFixed(op === "drilling" ? 3 : 2)}`;
+      try {
+        await navigator.clipboard.writeText(snippet);
+        const t = $("toast");
+        if (t) {
+          t.textContent = `Đã copy: ${snippet.replace(/\n/g, " | ")}`;
+          t.classList.add("show");
+          clearTimeout(t._timer);
+          t._timer = setTimeout(() => t.classList.remove("show"), 2200);
+        }
+      } catch {}
+    });
+
     // Tab switching
     const switchTab = (tab) => {
       const isCalc = tab === "calc";
