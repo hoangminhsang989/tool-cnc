@@ -396,7 +396,7 @@
         if (!val) return;
         const tpi = parseFloat(val);
         if (!Number.isFinite(tpi) || tpi <= 0) return;
-        const mm = +(25.4 / tpi).toFixed(3);
+        const mm = +(25.4 / tpi).toFixed(4);
         $("cFz").value = mm;
         const rpm = Math.max(1, parseFloat($("cRpm").value) || 1000);
         $("cVf").value = Math.round(rpm * mm);
