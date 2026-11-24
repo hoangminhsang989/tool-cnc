@@ -290,6 +290,35 @@
     $("tabKnurl").addEventListener("click", () => switchTab("knurl"));
     $("tabCalc").addEventListener("click", () => switchTab("calc"));
 
+    // Interactive reference tables: click material row or tapping drill cell to apply
+    const refTables = document.querySelectorAll("#calcView .ref-table");
+    if (refTables[0]) {
+      const matOrder = ["alu", "brass", "mild_steel", "c45", "inox", "hardened"];
+      refTables[0].querySelectorAll("tbody tr").forEach((tr, idx) => {
+        const key = matOrder[idx];
+        if (!key) return;
+        tr.classList.add("clickable-row");
+        tr.title = "Bấm để chọn nhanh vật liệu này";
+        tr.addEventListener("click", () => {
+          $("cMat").value = key;
+          applyCalcPreset();
+        });
+      });
+    }
+    if (refTables[1]) {
+      refTables[1].querySelectorAll("tbody td:not(:first-child)").forEach((td) => {
+        const dVal = parseFloat(td.textContent);
+        if (!Number.isFinite(dVal)) return;
+        td.classList.add("clickable-cell");
+        td.title = `Bấm để tính chế độ khoan mũi Ø${dVal} mm`;
+        td.addEventListener("click", () => {
+          $("cOp").value = "drilling";
+          $("cDia").value = dVal;
+          applyCalcPreset();
+        });
+      });
+    }
+
     if (loadCalcState()) updateCalc();
     else applyCalcPreset();
 

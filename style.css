@@ -139,6 +139,21 @@ body {
   background: var(--panel-alt);
 }
 
+.ref-table tbody tr.clickable-row {
+  cursor: pointer;
+}
+
+.ref-table td.clickable-cell {
+  cursor: pointer;
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.ref-table td.clickable-cell:hover {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
 .topbar-actions {
   display: flex;
   align-items: center;
